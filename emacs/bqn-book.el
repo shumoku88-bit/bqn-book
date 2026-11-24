@@ -107,7 +107,8 @@ Return (EXIT . LINES)."
       (setq bqn-book--file (expand-file-name file))
       (bqn-book--list)
       (tabulated-list-print))
-    (pop-to-buffer-same-window buffer)))
+    (pop-to-buffer-same-window buffer)
+    (message "+ new entry   RET correct   r refund   e edit as a change   g reread")))
 
 (defun bqn-book-refresh ()
   "Read the book again."
