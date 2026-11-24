@@ -30,10 +30,13 @@
 read ← •Import "read.bqn"
 change ← •Import "change.bqn"
 tab ← @+9
-Join ← {1↓∾(tab∾⊢)¨𝕩}
-Refuse ← {why←𝕩 ⋄ {ok⇐0, code⇐why}}
-_unless ← {bad←1⊑¨𝕩 ⋄ (∨´bad)◶⟨𝔽, {Refuse ⊑⊑bad/𝕩}⟩ 𝕩}
-Int ← {𝕩<0 ? "-"∾𝕊-𝕩 ; 𝕩<10 ? ⋈'0'+𝕩 ; (𝕊⌊𝕩÷10)∾'0'+10|𝕩}
+print ← •Import "print.bqn"
+Join ← print.Join
+Int ← print.Int
+result ← •Import "result.bqn"
+Refuse ← result.Refuse
+_unless ← result._unless
+_either_ ← result._either_
 Unpaid ← {b←𝕩 ⋄ ¬(↕≠b.plan.id)∊b.paid.plan∾b.cancelled.plan}   # open: neither paid nor cancelled
 
 Shapes ⇐ {
@@ -111,7 +114,7 @@ More ⇐ {s 𝕊 source‿days‿ids:
     rows ← 2↓ s change.Edit "PLAN"‿source       # its CHANGE lines and ENDPLAN
     ∾ days {⟨Join "PUT-PLAN"‿"NEW", Join "PLAN"‿𝕩‿𝕨‿(p⊑b.plan.measure)⟩ ∾ rows}¨ ids
   }
-  ((p<≠b.plan.id) ∧ p⊑(Unpaid b)∾0)◶⟨{𝕊: Refuse "source-not-open"}, Copies⟩ @
+  Copies _unless ⟨"source-not-open"‿(¬(p<≠b.plan.id) ∧ p⊑(Unpaid b)∾0)⟩
 }
 
 # A price change: every chosen two-row plan gets the new amount, each account's
@@ -130,13 +133,12 @@ Reprice ⇐ {b 𝕊 plans‿q:
 NewRows ← {b 𝕊 p‿q: c ← /b.change.plan=p ⋄ (c⊏b.change.locus) ⋈¨ q×× c⊏b.change.amount}
 Repriced ⇐ {s 𝕊 plans‿q:
   b ← s.book
-  r ← b Reprice plans‿q
   Block ← {p ← 𝕩 ⋄ ∾⟨
     ⟨Join "PUT-PLAN"‿"REPLACE", Join "PLAN"‿(p⊑b.plan.id)‿(p⊑b.plan.day)‿(p⊑b.plan.measure)⟩
     {Join "CHANGE"‿(⊑𝕩)‿(Int 1⊑𝕩)}¨ b NewRows p‿q
     ⟨"ENDPLAN"⟩
   ⟩}
-  (6=•Type r)◶⟨{𝕊: ∾Block¨r}, r˙⟩ @
+  ∾∘(Block¨) _either_ ⊢ b Reprice plans‿q
 }
 
 # The samples' questions: SERIES lists every series as GROUP lines; SERIES-OF
@@ -144,25 +146,23 @@ Repriced ⇐ {s 𝕊 plans‿q:
 Ask ⇐ {b 𝕊 lines:
   head ← read.SplitFields ⊑lines
   Of ← {𝕊:
-    r ← b SeriesOf 1⊑head
-    ⟨Join ⟨"SERIES-OF", 1⊑head⟩ ∾ (6=•Type r)◶⟨{𝕊: r⊏b.plan.id}, {𝕊: "REFUSED"‿r.code}⟩ @⟩
+    ⟨Join ⟨"SERIES-OF", 1⊑head⟩ ∾ {𝕩⊏b.plan.id} _either_ {"REFUSED"‿𝕩.code} b SeriesOf 1⊑head⟩
   }
   Slotted ← {𝕊:
     r ← Slot (1⊑head)‿(•ParseFloat 2⊑head)‿(•ParseFloat 3⊑head)
     ⟨Join (4↑head) ∾ (2=≡r)⊑⟨⋈r, r⟩⟩
   }
-  Repriced ← {𝕊:
+  Priced ← {𝕊:
     ids ← 1⊑¨ (("PLAN"≡⊑)¨⊸/ read.SplitFields¨ 1↓lines)
     q ← •ParseFloat 1⊑head
-    r ← b Reprice (b.plan.id⊐ids)‿q
     Plan ← {p←𝕩 ⋄ Join ⟨"PLAN", p⊑b.plan.id⟩ ∾ ∾{(⊑𝕩)‿(Int 1⊑𝕩)}¨ b NewRows p‿q}
-    (6=•Type r)◶⟨Plan¨, {⟨Join "REFUSED"‿𝕩.code⟩}⟩ r
+    Plan¨ _either_ {⟨Join "REFUSED"‿𝕩.code⟩} b Reprice (b.plan.id⊐ids)‿q
   }
   (⊑"SERIES"‿"SERIES-OF"‿"SLOT"‿"AMOUNT"⊐<⊑head)◶⟨
     {𝕊: ⟨"SERIES"⟩ ∾ ({Join ⟨"GROUP"⟩∾𝕩⊏b.plan.id}¨ Series b) ∾ ⟨"ENDSERIES"⟩}
     Of
     Slotted
-    Repriced
+    Priced
     {𝕊: ⟨Join "REFUSED"‿"unknown-question"⟩}
   ⟩ @
 }

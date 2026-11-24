@@ -59,9 +59,11 @@ series ← •Import "../src/series.bqn"
 print ← •Import "../src/print.bqn"
 amount ← •Import "../src/amount.bqn"
 view ← •Import "../src/view.bqn"
+result ← •Import "../src/result.bqn"
+_either_ ← result._either_
 tab ← @+9
-Row ← {1↓∾(tab∾⊢)¨𝕩}
-Int ← {𝕩<0 ? "-"∾𝕊-𝕩 ; 𝕩<10 ? ⋈'0'+𝕩 ; (𝕊⌊𝕩÷10)∾'0'+10|𝕩}
+Row ← print.Join
+Int ← print.Int
 Out ← {•Out¨𝕩 ⋄ •Exit 0}
 Refused ← {•Out "REFUSED"∾tab∾𝕩.code ⋄ •Exit 1}
 # lines the new text has and the old one has not: a change only inserts, so each
@@ -86,9 +88,9 @@ Ask ← {𝕊:
   Out ∾ (loaded.book pace.Ask ⊢)¨ (¯1++`heads)⊔lines
 }
 Listed ← {Out Row¨ 𝕏 loaded.book}
-Edited ← {r ← loaded change.Edit 𝕩‿id ⋄ (6=•Type r)◶⟨Out, Refused⟩ r}
+Edited ← {Answer loaded change.Edit 𝕩‿id}
 # lines, or a refusal
-Answer ← {(6=•Type 𝕩)◶⟨Out, Refused⟩ 𝕩}
+Answer ← Out _either_ Refused
 # a new entry's ID, as bakhlo makes them: entry- and 24 hex digits
 NewId ← {𝕊: "entry-"∾"0123456789abcdef"⊏˜24 •rand.Range 16}
 Opened ← {𝕊: Answer loaded.book form.Open id‿extra}
@@ -96,15 +98,15 @@ Filled ← {𝕊:
   target‿newId ← ("EDIT"≡id)◶⟨extra‿(NewId @), extra‿""⟩ @
   Answer loaded form.Fill id‿(("NEW"≡id)⊑target‿"-")‿newId‿(•FLines "/dev/stdin")
 }
-Refunded ← {𝕊: r ← loaded form.Refund id‿extra‿(NewId @) ⋄ Answer (6=•Type r)◶⟨⟨"PUT-ENTRY"∾tab∾"NEW"∾tab∾"-"⟩⊸∾, ⊢⟩ r}
+Refunded ← {𝕊: Answer (⟨"PUT-ENTRY"∾tab∾"NEW"∾tab∾"-"⟩⊸∾) _either_ ⊢ loaded form.Refund id‿extra‿(NewId @)}
 # bk's settings file, from config/ next to the book or else next to it; @ if neither
 Setting ← {
   dir ← •file.Parent loaded.path
   at ← (•file.Exists¨)⊸/ (dir∾"/config/"∾𝕩)‿(dir∾"/"∾𝕩)
   (0<≠at)◶⟨@˙, {𝕊: •FChars ⊑at}⟩ @
 }
-Pooled ← {𝕊: r ← (⊑loaded.book.measure.id) config.Pool Setting "daily-pace.tsv" ⋄ (6=•Type r)◶⟨Out, Refused⟩ r}
-Viewed ← {𝕊: r ← config.View Setting "balance-view.tsv" ⋄ (6=•Type r)◶⟨Out∘(Row¨), Refused⟩ r}
+Pooled ← {𝕊: Answer (⊑loaded.book.measure.id) config.Pool Setting "daily-pace.tsv"}
+Viewed ← {𝕊: Out∘(Row¨) _either_ Refused config.View Setting "balance-view.tsv"}
 # a coverage file bk cannot read watches nothing, as in bk plans
 Serial ← {𝕊:
   b ← loaded.book
@@ -139,7 +141,7 @@ Repriced ← {𝕊:
   Price ← {𝕊: Answer loaded series.Repriced plans‿q.value}
   q.ok◶⟨{𝕊: Refused q}, Price⟩ @
 }
-Cycled ← {𝕊: r ← (Setting "boundary-presets.tsv") config.Cycle id ⋄ r.ok◶⟨Refused, Out∘{⟨Row 𝕩.name‿𝕩.start‿𝕩.end⟩}⟩ r}
+Cycled ← {𝕊: Out∘{⟨Row 𝕩.name‿𝕩.start‿𝕩.end⟩} _either_ Refused (Setting "boundary-presets.tsv") config.Cycle id}
 Usage ← {𝕊: •Out "usage: book <book.txt> balances|preview|save|ask|measures|loci|entries|plans|entry <id>|plan <id>|open ENTRY|PLAN <id>|form NEW - | EDIT <id> | PAY <plan>|refund <id> <day>" ⋄ •Exit 2}
 commands ← "balances"‿"preview"‿"save"‿"ask"‿"measures"‿"loci"‿"entries"‿"plans"‿"entry"‿"plan"‿"open"‿"form"‿"refund"‿"pool"‿"cycle"‿"view"‿"series"‿"slots"‿"more"‿"reprice"
 (⊑commands⊐<command)◶⟨

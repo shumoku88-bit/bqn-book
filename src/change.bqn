@@ -19,13 +19,14 @@ print ← •Import "print.bqn"
 tab‿lf ← @+9‿10
 Fields ← read.SplitFields
 ToLines ← {m←lf=𝕩 ⋄ ¯1↓((((¬m)×1++`m)-1)∾1++´m)⊔𝕩}
-Refuse ← {why←𝕩 ⋄ {ok⇐0, code⇐why}}
+result ← •Import "result.bqn"
+Refuse ← result.Refuse
 Pad ← {𝕨↑𝕩∾𝕨⥊<""}                           # at least 𝕨 fields
-Join ← {1↓∾(tab∾⊢)¨𝕩}                        # fields → a line
+Join ← print.Join
 Kind ← ⊑Fields
 Amount ← {read.IsInteger 𝕩 ? •ParseFloat 𝕩 ; 0}
 # Write _unless failures: the first ⟨code, true⟩ refuses, else Write runs.
-_unless ← {bad←1⊑¨𝕩 ⋄ (∨´bad)◶⟨𝔽, {Refuse ⊑⊑bad/𝕩}⟩ 𝕩}
+_unless ← result._unless
 Bytes ⇐ {•ToUTF8 ∾{𝕩∾lf}¨𝕩.lines}
 
 # lines Session reading: the book, or the reading's refusal

@@ -23,7 +23,10 @@ Read `README.md` and `docs/PLAN.ja.md` first.
 
 Screens (a TUI, a GUI) must stay replaceable. Keep three layers:
 
-- `src/read.bqn`, `balance.bqn`, `print.bqn`, `change.bqn` are pure: no files, no screens.
+- `src/read.bqn`, `balance.bqn`, `print.bqn`, `change.bqn` and the rest of `src/` but
+  `store.bqn` are pure: no files, no screens. A helper has one owner: refusals in
+  `result.bqn` (`Refuse`, `_unless`, `_either_`), lines in `print.bqn` (`Join`, `Int`),
+  fields in `read.bqn` (`Split`); import them, never copy them.
 - `src/store.bqn` owns every effect on the book: lock, K12, durable write, `.prev`.
 - `bin/book` is the screens' door: tab-separated lines in, tab-separated lines out; a
   change is written in bakhlo's change language. A screen never edits book.txt itself.

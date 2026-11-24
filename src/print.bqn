@@ -3,6 +3,7 @@
 # printing gives back the same bytes (K13): bytes ≡ •ToUTF8 Print (Read bytes).book
 
 tab‿lf‿cr ← @+9‿10‿13
+Join ⇐ {1↓∾(tab∾⊢)¨𝕩}                       # fields → a line
 Int ⇐ {𝕩<0 ? "-"∾𝕊-𝕩 ; 𝕩<10 ? ⋈'0'+𝕩 ; (𝕊⌊𝕩÷10)∾'0'+10|𝕩}
 from‿to ← ⟨'\',lf,cr,tab⟩‿⟨"\\","\n","\r","\t"⟩
 Escape ⇐ {i←from⊐𝕩 ⋄ ∾(to∾⋈¨𝕩)⊏˜i+(4=i)×↕≠𝕩}

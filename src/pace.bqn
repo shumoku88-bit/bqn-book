@@ -15,8 +15,9 @@
 
 read ← •Import "read.bqn"
 balance ← •Import "balance.bqn"
-Refuse ← {why←𝕩 ⋄ {ok⇐0, code⇐why}}
-_unless ← {bad←1⊑¨𝕩 ⋄ (∨´bad)◶⟨𝔽, {Refuse ⊑⊑bad/𝕩}⟩ 𝕩}
+result ← •Import "result.bqn"
+Refuse ← result.Refuse
+_unless ← result._unless
 
 # A date as a day count (proleptic Gregorian), so that days subtract.
 Ordinal ← {
@@ -123,8 +124,9 @@ Activity ⇐ {b 𝕊 measure‿pool:
 # Questions and answers as bakhlo's samples write them: a question is its head line
 # and POOL lines; the answer follows and ends with END<kind>.
 tab ← @+9
-Join ← {1↓∾(tab∾⊢)¨𝕩}
-Int ← {𝕩<0 ? "-"∾𝕊-𝕩 ; 𝕩<10 ? ⋈'0'+𝕩 ; (𝕊⌊𝕩÷10)∾'0'+10|𝕩}
+print ← •Import "print.bqn"
+Join ← print.Join
+Int ← print.Int
 Ask ⇐ {b 𝕊 lines:
   head‿pool ← ⟨read.SplitFields ⊑lines, 1⊑¨read.SplitFields¨1↓lines⟩
   kind ← ⊑head

@@ -30,7 +30,7 @@ Coded ← {c 𝕊 l‿o: (0<≠¨c)/c {⟨𝕨,𝕩,o⟩}¨ l}
 
 # ---- field syntax ----
 
-Split ← {sep 𝕊 s: m←sep=s ⋄ ((((¬m)×1++`m)-1)∾1++´m) ⊔ s}
+Split ⇐ {sep 𝕊 s: m←sep=s ⋄ ((((¬m)×1++`m)-1)∾1++´m) ⊔ s}
 Token ← {(0<≠𝕩) ∧ ¬∨´𝕩∊' '∾cr}
 # YYYY-MM-DD, a real date in year 1 or later
 Date ← {

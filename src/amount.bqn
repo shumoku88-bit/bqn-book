@@ -14,7 +14,8 @@
 # (bakhlo's integers have no limit). Pure.
 
 print ← •Import "print.bqn"
-Refuse ← {why←𝕩 ⋄ {ok⇐0, code⇐why}}
+result ← •Import "result.bqn"
+Refuse ← result.Refuse
 Valued ← {v←𝕩 ⋄ {ok⇐1, value⇐v}}
 digit ← '0'+↕10
 exact ← 2⋆53
@@ -25,8 +26,8 @@ wide‿narrow ← "０１２３４５６７８９，．＋－＊／（）×÷　
 Normal ← {i←wide⊐𝕩 ⋄ ((i<≠wide)/i⊏narrow∾' ')⌾((i<≠wide)⊸/)𝕩}
 
 # A refusal travels as its code (text); F _then x gives it on, or applies F.
-IsCode ← {2=•Type ⊑𝕩∾0}
-_then ← {IsCode 𝕩 ? 𝕩 ; 𝔽 𝕩}
+IsCode ← result.IsCode
+_then ← result._then
 
 # Digits with optional grouping: 1,234,567 but not 12,34 or 1234,567. → digits or 0
 Whole ← {
@@ -78,14 +79,14 @@ Quanta ← {scale 𝕊 s:
   {𝕊 d‿places: places>scale ? "amount-precision" ; 𝕊 d‿places: Int d∾(scale-places)⥊'0'}_then Decimal s
 }
 
-Result ← {IsCode 𝕩 ? Refuse 𝕩 ; Valued 𝕩}
+Settled ← {IsCode 𝕩 ? Refuse 𝕩 ; Valued 𝕩}   # a code leaves as a refusal
 
 Positive ⇐ {scale 𝕊 text:
   s ← Normal text
   Money ← {𝕊 n‿d: n≤0 ? "non-positive-amount" ; 𝕊 n‿d: {1≠1⊑𝕩 ? "indivisible-amount" ; ⊑𝕩}_then Q ⟨n×10⋆scale, d⟩}
   Calculated ← {𝕊: 4096<≠•ToUTF8 s ? "invalid-amount" ; Money _then Expr s}
   Written ← {𝕊: {𝕩≤0 ? "non-positive-amount" ; 𝕩}_then scale Quanta s}
-  Result (∨´s∊"+-*/()")◶⟨Written, Calculated⟩ @
+  Settled (∨´s∊"+-*/()")◶⟨Written, Calculated⟩ @
 }
 
 # Outer ASCII whitespace goes; then an ASCII sign, then a decimal. Zero is allowed;
@@ -99,7 +100,7 @@ Signed ⇐ {scale 𝕊 text:
   t ← (+´∧`text∊white)↓(-+´∧`(⌽text)∊white)↓text
   minus ← '-'=⊑t
   body ← (⊑(1↑t)∊"+-")↓t
-  Result {(¯1⋆minus)×𝕩}_then scale Quanta Normal body
+  Settled {(¯1⋆minus)×𝕩}_then scale Quanta Normal body
 }
 
 Format ⇐ {scale 𝕊 n:

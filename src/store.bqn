@@ -25,7 +25,9 @@ unlink ← libc •FFI "i32"‿"unlink"‿"*u8:c8"
 C ← {(•ToUTF8 𝕩)∾@}                      # a path for libc
 readWrite‿writeOnly‿create‿exclusive ← 2‿1‿512‿2048
 barrier‿full ← 85‿51                    # F_BARRIERFSYNC, F_FULLFSYNC
-Refuse ← {why←𝕩 ⋄ {ok⇐0, code⇐why}}
+result ← •Import "result.bqn"
+Refuse ← result.Refuse
+_unless ← result._unless
 
 # change.bqn's book, with where it came from
 Placed ← {
@@ -78,5 +80,5 @@ Save ⇐ {loaded 𝕊 changed:
   ⟩
   Unlink¨ ⋈¨C¨ temp‿(temp∾".prev")       # whatever is left; errors do not matter
   Close⍟(lock≥0) ⋈lock
-  (0<≠code)◶⟨{𝕊: path‿bytes Placed changed}, {𝕊: Refuse code}⟩ @
+  {𝕊: path‿bytes Placed changed} _unless ⟨code‿(0<≠code)⟩
 }

@@ -20,11 +20,12 @@ print ← •Import "print.bqn"
 amount ← •Import "amount.bqn"
 change ← •Import "change.bqn"
 tab ← @+9
-Join ← {1↓∾(tab∾⊢)¨𝕩}
-Refuse ← {why←𝕩 ⋄ {ok⇐0, code⇐why}}
-IsCode ← {2=•Type ⊑𝕩∾0}
-_then ← {IsCode 𝕩 ? 𝕩 ; 𝔽 𝕩}
-_unless ← {bad←1⊑¨𝕩 ⋄ (∨´bad)◶⟨𝔽, {Refuse ⊑⊑bad/𝕩}⟩ 𝕩}
+Join ← print.Join
+result ← •Import "result.bqn"
+Refuse ← result.Refuse
+IsCode ← result.IsCode
+_then ← result._then
+_unless ← result._unless
 
 # ---- days ----
 

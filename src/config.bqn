@@ -15,14 +15,15 @@
 
 read ← •Import "read.bqn"
 tab‿lf‿cr ← @+9‿10‿13
-Refuse ← {why←𝕩 ⋄ {ok⇐0, code⇐why}}
-Split ← {sep 𝕊 s: m←sep=s ⋄ ((((¬m)×1++`m)-1)∾1++´m)⊔s}
+result ← •Import "result.bqn"
+Refuse ← result.Refuse
+Split ← read.Split
 Trim ← {w←𝕩∊" "∾tab‿cr ⋄ (+´∧`w)↓(-+´∧`⌽w)↓𝕩}
 # a file's lines that say something: trimmed, neither blank nor a # comment
 Said ← {('#'≢⊑)¨⊸/ (0<≠¨)⊸/ Trim¨ lf Split 𝕩}
 Token ← {(0<≠𝕩) ∧ ∧´(𝕩>@+32)∧𝕩≠@+127}
 DayNumber ← {•ParseFloat 𝕩/˜'-'≠𝕩}              # a real date as a number that orders
-_unless ← {bad←1⊑¨𝕩 ⋄ (∨´bad)◶⟨𝔽, {Refuse ⊑⊑bad/𝕩}⟩ 𝕩}
+_unless ← result._unless
 Lines ← {(@≢𝕩)◶⟨⟨⟩˙, {𝕊: tab Split¨ Said 𝕩}⟩ 𝕩}   # a missing file says nothing
 
 # daily-pace.tsv: one account and the guide's Measure per line
