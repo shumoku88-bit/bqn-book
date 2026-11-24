@@ -61,6 +61,13 @@ bqn-ledger は hledger 風の journal など8つのファイルを読む作り�
 
 ### 段階4：書く（合成データだけ）
 
+**一部済（2026-11-24）。** 「記帳を1件足す」（予定を払うことも含む）を作った。moko の決定で、TUI と GUI を後から差し替えられるように、中身・保存・入口の三層に分けた（README）。
+
+- `src/change.bqn`：bakhlo の変更の言語で `PUT-ENTRY NEW` を受け取る。本文に TX（と予定の PAID-BY）を差し込み、新しい本文をまるごと読み直して受け入れる。bakhlo の書き込みの決まり（HIDDEN の科目、同じ ID、開いた予定、通貨、両替の鍵）を、bakhlo の順で先に確かめる。bakhlo の `test/records` と `test/scheduled` の `PUT-ENTRY NEW` の見本46件がすべて一致（帳簿のバイト列か拒否の理由）。ほかの種類の変更（訂正、予定の作成・取消など）36件はまだ。
+- `src/store.bqn`：bakhlo の `store/book_file.ml` と同じ手順。`book.txt.lock` を `lockf` でつかみ、読んだ後に変わっていたら `conflict`、一時ファイルに書いて `F_BARRIERFSYNC`、元を `.prev` にリンクし、名前を差し替えてディレクトリを `F_FULLFSYNC`、読み直して確かめる。別のプロセスが鍵を持っていると `locked`。合成の帳簿で確かめ、保存したものを bakhlo 本体が読めることも確かめた（`tests/test_store.bqn`）。
+- `bin/book`：画面のための入口（balances・preview・save）。
+- bk が鍵を持っている間に BQN が拒否されることは、同じ鍵ファイルと同じ `lockf` を使う作りで守っている。bk との同時の書き込みそのものは、まだ試していない。
+
 bakhlo の `store/book_file.ml` と同じ手順で保存する。
 
 1. 読み込んだときの中身の印（revision）を覚えておく。

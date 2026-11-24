@@ -15,6 +15,15 @@ Read `README.md` and `docs/PLAN.ja.md` first.
   explicit decision. Real-data checks use bakhlo's `./tools/household-copy`; keep
   private names, memos, amounts and counts out of this repository and its history.
 
+## Layers (moko, 2026-11-24)
+
+Screens (a TUI, a GUI) must stay replaceable. Keep three layers:
+
+- `src/read.bqn`, `balance.bqn`, `print.bqn`, `change.bqn` are pure: no files, no screens.
+- `src/store.bqn` owns every effect on the book: lock, K12, durable write, `.prev`.
+- `bin/book` is the screens' door: tab-separated lines in, tab-separated lines out; a
+  change is written in bakhlo's change language. A screen never edits book.txt itself.
+
 ## BQN
 
 - Start from shapes: aligned columns per section, one row per line; a block line names
@@ -24,3 +33,6 @@ Read `README.md` and `docs/PLAN.ja.md` first.
   `src/read.bqn`), and let a rule's place carry its order.
 - Names are case-insensitive and ignore underscores: `Lines`, `lines` and `_lines` clash.
 - Try uncertain primitives in a small `bqn -e` probe; numbers are exact only up to 2⋆53.
+- BQN evaluates right to left: `(A) ∧ B` runs B first. Write one effect per line or step.
+- A block that never uses 𝕩 or 𝕨 is evaluated at once; give it `𝕊:` to make it a function.
+- Predicates end a body: names defined before `;` are gone after it. Use `◶` or a helper.
