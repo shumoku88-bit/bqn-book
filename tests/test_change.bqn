@@ -25,7 +25,7 @@ samples ← ∾SamplesIn¨"fixtures/records/"‿"fixtures/scheduled/"
 commands ← "PUT-ENTRY"‿"PUT-PLAN"‿"CANCEL-PLAN"‿"CORRECT-ENTRY-DATE"‿"CLASSIFY-MERCHANT"
 # a change's kind: PUT-ENTRY NEW, PUT-PLAN REPLACE, CANCEL-PLAN, …
 KindOf ← {"PUT-"≡4↑𝕩 ? (First 𝕩)∾" "∾1⊑Split 𝕩 ; First 𝕩}
-kindsWritten ← "PUT-ENTRY NEW"‿"CORRECT-ENTRY-DATE"
+kindsWritten ← "PUT-ENTRY NEW"‿"CORRECT-ENTRY-DATE"‿"CLASSIFY-MERCHANT"
 Written ← {∧´(KindOf¨((First¨∊commands˙)⊸/) 3⊑𝕩)∊kindsWritten}
 Passes ← {𝕊 dir‿name‿book‿c‿answer:
   r ← (change.Open •file.Bytes dir∾book) change.Apply c

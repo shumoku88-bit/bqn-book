@@ -388,3 +388,5 @@ Read ⇐ Lines
 SplitFields ⇐ tab⊸Split
 IsDate ⇐ Date
 IsInteger ⇐ Integer
+IsText ⇐ TextOk
+Unescaped ⇐ Unescape

@@ -147,6 +147,26 @@ CorrectDate ← {s 𝕊 id‿day:
   ⟩
 }
 
+# CLASSIFY-MERCHANT <TX ID> MERCHANT <name> | NONMERCHANT: once only. The name
+# arrives escaped (\t \r \n \\) and must be one token.
+Classify ← {s 𝕊 id‿how‿name:
+  name ↩ read.IsText◶⟨"\"˙, read.Unescaped⟩ name     # a bad escape is no token
+  tx ← ⊑s.book.tx.id⊐⋈id
+  line ← ("MERCHANT"≡how)◶⟨"NONMERCHANT"˙, {𝕊: "MERCHANT"∾tab∾name}⟩ @
+  Write ← {𝕊:
+    from‿to ← s.lines Block "TX"‿id
+    old ← (from+↕1+to-from)⊏s.lines
+    code‿block ← Keyed (⊑/(Kind¨old)∊"EXCHANGE"‿"ENDTX")‿⟨line⟩ Insert old
+    (0<≠code)◶⟨{𝕊: Admit from‿to‿block Replace s.lines}, {𝕊: Refuse code}⟩ @
+  }
+  Write _unless ⟨
+    "merchant-kind"‿(¬⊑(⋈how)∊"MERCHANT"‿"NONMERCHANT")   # ours: bakhlo has no sample
+    "merchant-unknown"‿(tx=≠s.book.tx.id)
+    "merchant-classified"‿(⊑(⋈tx)∊s.book.merchant.tx)
+    "merchant-token"‿(("MERCHANT"≡how) ∧ (0=≠name) ∨ ∨´name∊" "∾@+9‿10‿13)
+  ⟩
+}
+
 # One change: its command line and the lines of its block.
 Change ← {s 𝕊 c:
   command ← Fields ⊑c
@@ -154,6 +174,9 @@ Change ← {s 𝕊 c:
   s 𝕊 c:
   command ← 3 Pad Fields ⊑c
   "CORRECT-ENTRY-DATE"≡⊑command ? s CorrectDate 1↓command ;
+  s 𝕊 c:
+  command ← 4 Pad Fields ⊑c
+  "CLASSIFY-MERCHANT"≡⊑command ? s Classify 1↓command ;
   Refuse "unsupported-change:"∾⊑Fields ⊑𝕩
 }
 
