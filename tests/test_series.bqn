@@ -20,7 +20,11 @@ Fields ← {(((¬m)×1++`m←tab=𝕩)-1)⊔𝕩}
 ofs ← ("SERIES-OF"≡Head)¨⊸/ lines
 right ← {𝕩 ≡ ⊑ book series.Ask ⟨1↓∾(tab⊸∾)¨ 2↑Fields 𝕩⟩}¨ ofs
 Assert ∧´right
-•Out "series samples: "∾•Fmt 1+≠right
+slots ← ("SLOT"≡Head)¨⊸/ lines
+slotted ← {𝕩 ≡ ⊑ book series.Ask ⟨1↓∾(tab⊸∾)¨ 4↑Fields 𝕩⟩}¨ slots
+{•Out "wrong: "∾𝕩}¨ (¬slotted)/slots
+Assert ∧´slotted
+•Out "series samples: "∾•Fmt (1+≠right)+≠slotted
 
 # coverage: rent is watched monthly from January; its April has no plan
 rules ← config.Coverage "rent"∾tab∾"2027-01-27"∾tab∾"1"∾tab∾"bank"∾tab∾"rent"∾lf
@@ -33,4 +37,11 @@ Assert "malformed" ≡ (config.Coverage "rent"∾tab∾"2027-01-27"∾tab∾"1"�
 Assert "malformed" ≡ (config.Coverage ∾⟨"a", tab, "2027-01-27", tab, "1", tab, "bank", tab, "rent", lf,
                                        "b", tab, "2027-01-27", tab, "1", tab, "bank", tab, "rent", lf⟩).code
 Assert ⟨⟩ ≡ config.Coverage ""
+# more: plans like the last rent, on the days given, with the IDs given
+s ← change.Open •file.Bytes dir∾"series.txt"
+more ← s series.More "rent-2027-03"‿⟨"2027-04-27", "2027-05-27"⟩‿⟨"rent-a", "rent-b"⟩
+Assert more ≡ ⟨"PUT-PLAN"∾tab∾"NEW", ∾⟨"PLAN", tab, "rent-a", tab, "2027-04-27", tab, "jpy"⟩, "CHANGE"∾tab∾"bank"∾tab∾"-80000", "CHANGE"∾tab∾"rent"∾tab∾"80000", "ENDPLAN",
+               "PUT-PLAN"∾tab∾"NEW", ∾⟨"PLAN", tab, "rent-b", tab, "2027-05-27", tab, "jpy"⟩, "CHANGE"∾tab∾"bank"∾tab∾"-80000", "CHANGE"∾tab∾"rent"∾tab∾"80000", "ENDPLAN"⟩
+Assert (s change.Apply more).ok
+Assert "source-not-open" ≡ (s series.More "rent-2027-01"‿⟨"2027-04-27"⟩‿⟨"x"⟩).code
 •Out "test_series: ok"

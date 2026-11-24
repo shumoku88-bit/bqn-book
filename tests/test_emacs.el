@@ -236,4 +236,61 @@
   (should (equal (bqn-book--typed-day "2027-02-28") "2027-02-28"))
   (should (equal (bqn-book--typed-day "2027/02-28") "2027/02-28")))
 
+(ert-deftest bqn-book-keys-say-what-is-bound ()
+  ;; every key ? shows is bound to a command on its screen
+  (dolist (screen bqn-book--keys)
+    (let ((map (symbol-value (intern (format "%s-map" (car screen))))))
+      (dolist (key (cdr screen))
+        (should (commandp (keymap-lookup map (car key))))))
+    (should (eq (keymap-lookup (symbol-value (intern (format "%s-map" (car screen))))
+                               (if (memq (car screen) '(bqn-book-form-mode bqn-book-change-mode)) "C-c ?" "?"))
+                'bqn-book-keys)))
+  (with-current-buffer (get-buffer-create "*keys test*")
+    (bqn-book-series-mode)
+    (save-window-excursion (bqn-book-keys))
+    (should (string-match-p "先の月を埋める" (with-current-buffer "*book keys*" (buffer-string))))))
+
+(ert-deftest bqn-book-makes-and-changes-plans ()
+  (let* ((copy (test-bqn-book--copy))
+         (home (save-window-excursion (bqn-book-home copy))))
+    (with-current-buffer home
+      (setq bqn-book--today "2027-02-01")
+      ;; a new plan, asked as an entry is
+      (test-bqn-book--answering '("2027/3/5" "bank  Bank" "-1,200" "phone  Phone" "+1200" "") (bqn-book-new-plan))
+      (should (string-match-p "PLAN\tentry-[0-9a-f]+\t2027-03-05\tjpy\nCHANGE\tbank\t-1200\nCHANGE\tphone\t1200\nENDPLAN"
+                              (test-bqn-book--text copy)))
+      ;; a plan changed in a form keeps its ID
+      (goto-char (point-min))
+      (search-forward "2027-02-27")
+      (save-window-excursion (bqn-book-edit-plan))
+      (with-current-buffer "*book form rent-2027-02*"
+        (should (equal (buffer-string) "DAY\t2027-02-27\nMEASURE\tjpy\nROW\t-\tbank\t-80000\nROW\t-\trent\t80000\n"))
+        (goto-char (point-min))
+        (while (search-forward "80000" nil t) (replace-match "82000"))
+        (test-bqn-book--answering '() (bqn-book-form-submit)))
+      (should (string-match-p "PLAN\trent-2027-02\t2027-02-27\tjpy\nCHANGE\tbank\t-82000\nCHANGE\trent\t82000\nENDPLAN"
+                              (test-bqn-book--text copy))))))
+
+(ert-deftest bqn-book-fills-the-coming-months ()
+  (let* ((copy (test-bqn-book--copy))
+         (home (save-window-excursion (bqn-book-home copy))))
+    (with-current-buffer home (setq bqn-book--today "2027-02-01"))
+    (let ((series (with-current-buffer home (save-window-excursion (bqn-book-home-series)))))
+      (with-current-buffer series
+        (goto-char (point-min))
+        (search-forward "Rent")
+        ;; monthly, two more: after the last rent (2027-03-27)
+        (test-bqn-book--answering '("1" "2") (bqn-book-fill-months))
+        (should (string-match-p "Bank +Rent +80,000 +jpy +2027-02-27 +2027-05-27 +4"
+                                (buffer-substring-no-properties (point-min) (point-max))))))
+    (should (string-match-p "PLAN\tentry-[0-9a-f]+\t2027-04-27\tjpy\nCHANGE\tbank\t-80000\nCHANGE\trent\t80000\nENDPLAN"
+                            (test-bqn-book--text copy)))))
+
+(ert-deftest bqn-book-asks-for-a-missing-day ()
+  ;; a month without the day: a real date after the last plan, or nothing to skip
+  (cl-letf (((symbol-function 'sit-for) #'ignore))
+    (test-bqn-book--answering '("2027-02-30" "2027-01-15" "2027/2/28")
+                              (should (equal (bqn-book--ask-missing "2027-02" "31" "2027-01-31") "2027-02-28")))
+    (test-bqn-book--answering '("") (should-not (bqn-book--ask-missing "2027-02" "31" "2027-01-31")))))
+
 ;;; test_emacs.el ends here

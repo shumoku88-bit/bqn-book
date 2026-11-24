@@ -25,6 +25,7 @@
 (require 'subr-x)
 (require 'cl-lib)
 (require 'seq)
+(require 'time-date)
 
 (defgroup bqn-book nil
   "bakhlo's book.txt through bqn-book."
@@ -45,6 +46,73 @@ moko has decided so (bqn-book docs/PLAN.ja.md, stage 5)."
   "After each save, commit and push the book's own Git repository, as bk does when
 it ends (bin/backup). For the household book, whose folder is its backup repository."
   :type 'boolean)
+
+;;;; Keys: ? (C-c ? where typing) shows what each screen's keys do
+
+(defconst bqn-book--keys
+  '((bqn-book-home-mode
+     ("RET" . "予定の上：支払う　記帳の上：直す")
+     ("+" . "新しい記帳")
+     ("n" . "新しい予定")
+     ("d" . "予定の期日を変える")
+     ("e" . "予定をフォームで直す（期日・科目・金額）")
+     ("E" . "予定を変更の文で直す")
+     ("c" . "予定を取り消す（印を付けて残す）")
+     ("s" . "予定のまとまり")
+     ("l" . "記帳の一覧")
+     ("g" . "読み直す"))
+    (bqn-book-entries-mode
+     ("RET" . "記帳をフォームで直す")
+     ("+" . "新しい記帳")
+     ("r" . "返金（元を残し、打ち消す記帳を足す）")
+     ("e" . "記帳を変更の文で直す")
+     ("S" . "この列で並べ替える（見出しの列で）")
+     ("g" . "読み直す"))
+    (bqn-book-series-mode
+     ("RET" . "このまとまりの予定")
+     ("m" . "先の月を埋める（最後の予定を写す）")
+     ("n" . "新しい予定")
+     ("S" . "この列で並べ替える（見出しの列で）")
+     ("g" . "読み直す"))
+    (bqn-book-series-plans-mode
+     ("RET" . "支払う")
+     ("d" . "期日を変える")
+     ("e" . "フォームで直す（期日・科目・金額）")
+     ("E" . "変更の文で直す")
+     ("c" . "取り消す（印を付けて残す）")
+     ("m" . "先の月を埋める（最後の予定を写す）")
+     ("n" . "新しい予定")
+     ("g" . "読み直す"))
+    (bqn-book-form-mode
+     ("C-c C-c" . "下見して保存")
+     ("C-c C-a" . "科目を名前で選んで入れる")
+     ("C-c C-k" . "保存せずに閉じる")
+     ("TAB" . "欄の区切り（タブ）"))
+    (bqn-book-change-mode
+     ("C-c C-p" . "下見（保存しない）")
+     ("C-c C-c" . "保存")
+     ("C-c C-k" . "保存せずに閉じる")
+     ("TAB" . "欄の区切り（タブ）")))
+  "Each screen's keys and what they do, as ? shows them.")
+
+(defun bqn-book-keys ()
+  "Show what this screen's keys do; again, or q there, closes it."
+  (interactive)
+  (let* ((mode major-mode)
+         (window (get-buffer-window "*book keys*")))
+    (if (and window (eq last-command 'bqn-book-keys))
+        (quit-window nil window)
+      (with-current-buffer (get-buffer-create "*book keys*")
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (dolist (key (cdr (assq mode bqn-book--keys)))
+            (insert "  " (propertize (bqn-book--cell (car key) 8) 'face 'help-key-binding) "  " (cdr key) "\n"))
+          (insert "  " (propertize (bqn-book--cell (if (derived-mode-p 'text-mode) "C-c ?" "?") 8) 'face 'help-key-binding)
+                  "  このヒントを閉じる\n"))
+        (special-mode)
+        (goto-char (point-min)))
+      (display-buffer "*book keys*" '((display-buffer-in-side-window) (side . bottom)
+                                       (window-height . fit-window-to-buffer))))))
 
 ;;;; Talking to bin/book
 
@@ -102,7 +170,8 @@ FILE, each a list of fields."
   "+" #'bqn-book-new-entry
   "r" #'bqn-book-refund-entry
   "e" #'bqn-book-edit-entry
-  "g" #'bqn-book-refresh)
+  "g" #'bqn-book-refresh
+  "?" #'bqn-book-keys)
 
 (define-derived-mode bqn-book-entries-mode tabulated-list-mode "Book"
   "The entries of a book.txt, in recorded order."
@@ -137,7 +206,7 @@ FILE, each a list of fields."
       (bqn-book--list)
       (tabulated-list-print))
     (pop-to-buffer-same-window buffer)
-    (message "+ new entry   RET correct   r refund   e edit as a change   g reread")))
+    (message "? keys")))
 
 (defun bqn-book-refresh ()
   "Read the book again."
@@ -166,6 +235,7 @@ FILE, each a list of fields."
   "C-c C-p" #'bqn-book-preview
   "C-c C-c" #'bqn-book-save
   "C-c C-k" #'bqn-book-discard
+  "C-c ?" #'bqn-book-keys
   "TAB" #'bqn-book-insert-tab)
 
 (define-derived-mode bqn-book-change-mode text-mode "Book change"
@@ -197,7 +267,7 @@ C-c C-p previews it, C-c C-c saves it, C-c C-k discards it."
       (goto-char (point-min))
       (forward-line 1))
     (pop-to-buffer buffer)
-    (message "C-c C-p preview, C-c C-c save, C-c C-k discard")))
+    (message "C-c C-c save   C-c ? keys")))
 
 (defun bqn-book--entry-at-point ()
   "The entry at point: a list's row, or a home line."
@@ -302,6 +372,7 @@ Return non-nil when saved."
   "C-c C-c" #'bqn-book-form-submit
   "C-c C-a" #'bqn-book-form-insert-account
   "C-c C-k" #'bqn-book-discard
+  "C-c ?" #'bqn-book-keys
   "TAB" #'bqn-book-insert-tab)
 
 (define-derived-mode bqn-book-form-mode text-mode "Book form"
@@ -323,7 +394,7 @@ C-c C-a inserts an account by its name, C-c C-k discards."
       (insert (string-join lines "\n") "\n")
       (goto-char (point-min)))
     (pop-to-buffer buffer)
-    (message "C-c C-c preview and save, C-c C-a account, C-c C-k discard")
+    (message "C-c C-c preview and save   C-c ? keys")
     buffer))
 
 (defun bqn-book-form-insert-account ()
@@ -347,8 +418,15 @@ C-c C-a inserts an account by its name, C-c C-k discards."
   (let* ((file bqn-book--file)
          (list (current-buffer))
          (day (read-string "Day: " (format-time-string "%Y-%m-%d")))
-         (memo (read-string "Memo: "))
-         (measures (mapcar #'car (bqn-book--rows file "measures")))
+         (memo (read-string "Memo: ")))
+    (bqn-book--ask-and-save file list "NEW" "-"
+                            (append (list (concat "DAY\t" day) (concat "MEMO\t" memo))
+                                    (bqn-book--ask-rows file)))))
+
+(defun bqn-book--ask-rows (file)
+  "Ask for FILE's Measure, then accounts and signed amounts until an empty account:
+the form's MEASURE and ROW lines."
+  (let* ((measures (mapcar #'car (bqn-book--rows file "measures")))
          (measure (if (cdr measures) (completing-read "Measure: " measures nil t nil nil (car measures))
                     (car measures)))
          (rows '()))
@@ -358,13 +436,23 @@ C-c C-a inserts an account by its name, C-c C-k discards."
                (push (format "ROW\t-\t%s\t%s" account
                              (read-string (format "Amount for %s (-1200, +500+300): " account)))
                      rows))))
-    (let* ((lines (append (list (concat "DAY\t" day) (concat "MEMO\t" memo) (concat "MEASURE\t" measure))
-                          (nreverse rows)))
-           (change (bqn-book--fill file "NEW" "-" lines)))
-      (if change
-          (bqn-book--save-change file change list)
-        ;; refused: keep what was typed in a form, to fix and try again
-        (bqn-book--form-buffer file list "NEW" "-" lines)))))
+    (cons (concat "MEASURE\t" measure) (nreverse rows))))
+
+(defun bqn-book--ask-and-save (file list mode target lines)
+  "Make the change form MODE with TARGET makes of LINES, preview it and save it
+when asked to; when it is refused, keep what was typed in a form to fix."
+  (let ((change (bqn-book--fill file mode target lines)))
+    (if change
+        (bqn-book--save-change file change list)
+      (bqn-book--form-buffer file list mode target lines))))
+
+(defun bqn-book-new-plan ()
+  "Make a new plan: its due day, then accounts and amounts, as an entry asks them."
+  (interactive)
+  (let ((file bqn-book--file) (list (current-buffer)))
+    (bqn-book--ask-and-save file list "PLAN" "-"
+                            (cons (concat "DAY\t" (bqn-book--typed-day (read-string "Due day: " (bqn-book--day-today))))
+                                  (bqn-book--ask-rows file)))))
 
 (defun bqn-book--day-and-memo (file id)
   "Entry ID's day and memo in FILE, the memo as typed (a form line holds tabs)."
@@ -459,7 +547,10 @@ Columns, not characters: a Japanese character takes two."
   "d" #'bqn-book-move-plan
   "c" #'bqn-book-cancel-plan
   "e" #'bqn-book-edit-plan
+  "E" #'bqn-book-edit-plan-as-change
+  "n" #'bqn-book-new-plan
   "s" #'bqn-book-home-series
+  "?" #'bqn-book-keys
   "g" #'revert-buffer)
 
 (define-derived-mode bqn-book-home-mode special-mode "Book home"
@@ -550,8 +641,7 @@ Columns, not characters: a Japanese character takes two."
                                   (if (string-empty-p (nth 2 row)) (propertize "(no memo)" 'face 'shadow)
                                     (bqn-book--shown (nth 2 row))))
                           'bqn-book-entry (car row))))
-    (insert "\n" (propertize "RET on a plan: pay it, on an entry: correct it   d move a plan's day   c cancel a plan
-+ new entry   s plans in series   l entries   g reread" 'face 'shadow) "\n")
+    (insert "\n" (propertize "? keys" 'face 'shadow) "\n")
     (goto-char (min point (point-max)))))
 
 ;;;###autoload
@@ -616,10 +706,79 @@ cancelled: nothing is erased."
                            (current-buffer))))
 
 (defun bqn-book-edit-plan ()
-  "Open the open plan at point as a change: day, accounts and amounts, as text."
+  "Change the open plan at point in a form: its due day, accounts and amounts."
+  (interactive)
+  (let ((plan (bqn-book--plan-at-point "change it")))
+    (pcase (bqn-book--call bqn-book--file (list "open" "PLAN" plan))
+      (`(0 . ,rows)
+       (let ((day (nth 2 (split-string (nth 1 (bqn-book--plan-change plan)) "\t"))))
+         (bqn-book--form-buffer bqn-book--file (current-buffer) "PLAN" plan
+                                (cons (concat "DAY\t" day) rows))))
+      (`(,_ . ,lines) (bqn-book--refusal lines)))))
+
+(defun bqn-book-edit-plan-as-change ()
+  "Open the open plan at point as a change, in bakhlo's change language."
   (interactive)
   (let ((plan (bqn-book--plan-at-point "edit it")))
     (bqn-book--change (bqn-book--plan-change plan) plan)))
+
+(defun bqn-book--fill-months (source every list)
+  "Add plans like SOURCE (the last of its series) in the coming months, EVERY
+months apart by default, after a preview, as bk plans more does. A month without
+SOURCE's day is dated by the person, or skipped."
+  (let* ((file bqn-book--file)
+         (anchor (nth 1 (assoc source (bqn-book--rows file "plans"))))
+         (months (bqn-book--ask-number "Every how many months" every 1 12))
+         (count (bqn-book--ask-number "How many more" 3 1 24))
+         (days '()))
+    (dolist (slot (bqn-book--rows file (list "slots" anchor (number-to-string months) (number-to-string count))))
+      (pcase slot
+        (`(,day) (push day days))
+        (`("MISSING" ,month ,d)
+         (let ((day (bqn-book--ask-missing month d anchor)))
+           (when day (push day days))))))
+    (if (null days)
+        (message "No plans to add.")
+      (pcase (bqn-book--call file (list "more" source) (concat (string-join (nreverse days) "\n") "\n"))
+        (`(0 . ,change) (bqn-book--save-change file change list))
+        (`(,_ . ,lines) (bqn-book--refusal lines))))))
+
+(defun bqn-book--ask-number (prompt default low high)
+  "Ask for a whole number from LOW to HIGH, DEFAULT on Enter, until one is given."
+  (let ((n (string-to-number (read-string (format "%s (%d-%d): " prompt low high) nil nil
+                                          (number-to-string default)))))
+    (if (<= low n high) n
+      (message "Enter %d to %d." low high)
+      (sit-for 1)
+      (bqn-book--ask-number prompt default low high))))
+
+(defun bqn-book--real-day-p (day)
+  "Whether DAY is a real YYYY-MM-DD date: 2027-02-30 is not."
+  (and (string-match "\\`\\([0-9]\\{4\\}\\)-\\([0-9][0-9]\\)-\\([0-9][0-9]\\)\\'" day)
+       (let ((y (string-to-number (match-string 1 day)))
+             (m (string-to-number (match-string 2 day)))
+             (d (string-to-number (match-string 3 day))))
+         (and (<= 1 y) (<= 1 m 12) (<= 1 d (date-days-in-month y m))))))
+
+(defun bqn-book--ask-missing (month day after)
+  "MONTH has no DAY: ask for its date, after AFTER; nil when skipped."
+  (let ((text (read-string (format "%s has no day %s. Date (empty skips that month): " month day))))
+    (cond ((string-empty-p text) nil)
+          ((let ((d (bqn-book--typed-day text)))
+             (and (bqn-book--real-day-p d) (string< after d) d)))
+          (t (message "Enter a real date after %s, or nothing to skip." after)
+             (sit-for 1)
+             (bqn-book--ask-missing month day after)))))
+
+(defun bqn-book-fill-months ()
+  "Fill the coming months of the series at point, or of this series' plans."
+  (interactive)
+  (pcase-let ((`(,ids . ,every)
+               (if (derived-mode-p 'bqn-book-series-mode)
+                   (let ((ids (or (tabulated-list-get-id) (user-error "No series here"))))
+                     (cons (split-string ids "," t) (cdr (assoc ids bqn-book--series-every))))
+                 (cons bqn-book--series-ids bqn-book--series-every))))
+    (bqn-book--fill-months (car (last ids)) (if (and every (> every 0)) every 1) (current-buffer))))
 
 (defun bqn-book-pay-plan ()
   "Pay the open plan at point: a form with its accounts and amounts, dated today.
@@ -655,7 +814,10 @@ Change an amount to pay a different one; C-c C-c previews and saves."
 (define-keymap :keymap bqn-book-series-mode-map   ; again on reload: a new key takes effect
   :parent tabulated-list-mode-map
   "RET" #'bqn-book-series-plans
-  "g" #'revert-buffer)
+  "m" #'bqn-book-fill-months
+  "n" #'bqn-book-new-plan
+  "g" #'revert-buffer
+  "?" #'bqn-book-keys)
 
 (define-derived-mode bqn-book-series-mode tabulated-list-mode "Book series"
   "Open plans in series, as bk plans lists them: the same accounts paying and
@@ -672,14 +834,21 @@ receiving, whatever the amounts. RET shows a series' plans."
   "bk's word for a coverage rule's MONTHS."
   (pcase months ("0" "undecided") ("1" "monthly") ("12" "yearly") (_ (format "every %sm" months))))
 
+(defvar-local bqn-book--series-every nil
+  "In a series list, (IDS . months) of each series a coverage rule watches; in a
+series' plans, its months, or nil.")
+
 (defun bqn-book--series ()
   "Fill the series buffer from bin/book."
   (let* ((file bqn-book--file)
          (today (bqn-book--day-today))
          (names (bqn-book--names file)))
+    (setq bqn-book--series-every nil)
     (setq tabulated-list-entries
           (mapcar (lambda (row)
                     (pcase-let ((`(,from ,to ,q ,m ,next ,last ,count ,every ,missing ,ids) row))
+                      (unless (string-empty-p every)
+                        (push (cons ids (string-to-number every)) bqn-book--series-every))
                       (list ids
                             (vector (bqn-book--named from names) (bqn-book--named to names)
                                     (if (equal q "split") "split" (bqn-book--money q (bqn-book--scale file m)))
@@ -703,7 +872,7 @@ receiving, whatever the amounts. RET shows a series' plans."
       (bqn-book--series)
       (tabulated-list-print))
     (pop-to-buffer-same-window buffer)
-    (message "RET a series' plans   g reread")
+    (message "? keys")
     buffer))
 
 (defvar-local bqn-book--series-ids nil "The plans this series buffer shows.")
@@ -716,7 +885,11 @@ receiving, whatever the amounts. RET shows a series' plans."
   "d" #'bqn-book-move-plan
   "c" #'bqn-book-cancel-plan
   "e" #'bqn-book-edit-plan
-  "g" #'revert-buffer)
+  "E" #'bqn-book-edit-plan-as-change
+  "m" #'bqn-book-fill-months
+  "n" #'bqn-book-new-plan
+  "g" #'revert-buffer
+  "?" #'bqn-book-keys)
 
 (define-derived-mode bqn-book-series-plans-mode tabulated-list-mode "Book plans"
   "One series' open plans by day. RET pays the plan at point."
@@ -744,19 +917,22 @@ receiving, whatever the amounts. RET shows a series' plans."
   "The plans of the series at point."
   (interactive)
   (let ((ids (tabulated-list-get-id))
+        (every nil)
         (title (aref (tabulated-list-get-entry) 1))
         (file bqn-book--file) (today bqn-book--today) (series (current-buffer)))
     (unless ids (user-error "No series here"))
+    (setq every (cdr (assoc ids bqn-book--series-every)))
     (let ((buffer (get-buffer-create (format "*book plans → %s*" title))))
       (with-current-buffer buffer
         (bqn-book-series-plans-mode)
         (setq bqn-book--file file bqn-book--today today
               bqn-book--series-ids (split-string ids "," t)
+              bqn-book--series-every every
               bqn-book--list-buffer series)
         (bqn-book--series-plans)
         (tabulated-list-print))
       (pop-to-buffer-same-window buffer)
-      (message "RET pay   d move its day   c cancel   e edit as a change   g reread")
+      (message "? keys")
       buffer)))
 
 (provide 'bqn-book)

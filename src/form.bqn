@@ -6,7 +6,9 @@
 #   book Open "ENTRY"‿id | "PLAN"‿id → the form: MEASURE, then ROW key|- locus amount
 #   book Fill mode‿target‿id‿lines   → the change that records it (RESULT line and
 #                                       TX), or {ok⇐0, code}
-#       mode NEW (target -), EDIT (target: the entry), PAY (target: the plan);
+#       mode NEW (target -), EDIT (target: the entry), PAY (target: the plan),
+#       PLAN (target - for a new plan, or the open plan to change: its due day,
+#       Measure and rows; a plan has no memo, keys or original);
 #       lines: DAY, MEMO, MEASURE, ROW key|- locus ±amount, optional ORIGINAL m quanta
 #   book Refund target‿day‿id        → the refund's TX, or a code
 #   book Exchange day‿id‿memo‿from‿to → the exchange's TX and whether the book admits it
@@ -96,6 +98,7 @@ Fill ⇐ {s 𝕊 mode‿target‿id‿lines:
   keys‿loci‿texts ← 1‿2‿3⊑¨¨<Of "ROW"
   originals ← Of "ORIGINAL"
   edit ← "EDIT"≡mode
+  plan ← "PLAN"≡mode
   t ← b TxOf target
   day ↩ TypedDay day
   quanta ← (b ScaleOf measure) RowAmount¨ texts
@@ -118,12 +121,26 @@ Fill ⇐ {s 𝕊 mode‿target‿id‿lines:
     r ← s change.Apply ⟨head⟩∾tx
     r.ok◶⟨{𝕊: Refuse "admission:"∾r.code}, (⟨head⟩∾tx)˙⟩ @
   }
-  Write _unless ⟨
+  # a plan, as bakhlo builds one (household/record.ml build_plan): new, or in the
+  # place of the open plan it changes, with the same ID
+  Schedule ← {𝕊:
+    new ← "-"≡target
+    block ← ∾⟨
+      ⟨Join "PLAN"‿(new⊑target‿id)‿day‿measure⟩
+      loci {Join "CHANGE"‿𝕨‿(print.Int 𝕩)}¨ quanta
+      ⟨"ENDPLAN"⟩
+    ⟩
+    head ← Join "PUT-PLAN"‿(new⊑"REPLACE"‿"NEW")
+    r ← s change.Apply ⟨head⟩∾block
+    r.ok◶⟨{𝕊: Refuse "admission:"∾r.code}, (⟨head⟩∾block)˙⟩ @
+  }
+  Made ← plan◶⟨Write, Schedule⟩
+  Made _unless ⟨
     "day-format"‿("invalid-date"≡day)
     "postings:posting-required"‿(0=≠quanta)
     (⊑((bad/↕≠bad) Row¨ bad/quanta)∾<"")‿(∨´bad)
     (⊑(((0=≠¨loci)/↕≠loci) Row¨ <"empty-locus")∾<"")‿(∨´0=≠¨loci)
-    "original-measure"‿((¬edit) ∧ ∨´¬(1⊑¨originals)∊b.measure.id)
+    "original-measure"‿((¬edit∨plan) ∧ ∨´¬(1⊑¨originals)∊b.measure.id)
     "unbalanced"‿(0≠+´(¬bad)/quanta)
   ⟩
 }

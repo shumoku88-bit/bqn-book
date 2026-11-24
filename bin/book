@@ -31,6 +31,12 @@
 #                              amount (or split), Measure, next day, last day, how
 #                              many, the watching rule's months (or ""), its first
 #                              missing month (or ""), the plans' IDs (joined by ,)
+#   book <book.txt> slots <anchor day> <every months> <how many>
+#                              the coming days after anchor: a day, or MISSING
+#                              year-month day where that month has no such day
+#   book <book.txt> more <plan> - < days
+#                              the change adding plans like the open plan, one
+#                              on each day read (one a line), each with a new ID
 #   book <book.txt> cycle <day>
 #                              the cycle holding day: name, start, end (bk's
 #                              boundary-presets.tsv; end excluded)
@@ -111,14 +117,23 @@ Serial ← {𝕊:
   }
   Out Row∘Line¨ groups ⋈¨ b series.Watch rules‿id‿12
 }
+Slotted ← {𝕊:
+  every‿count ← •ParseFloat¨ extra‿(⊑4↓•args∾<"0")
+  slots ← {series.Slot id‿every‿𝕩}¨ 1+↕count
+  Out Row∘{1=≡𝕩 ? ⋈𝕩 ; 𝕩}¨ (⊑("NONE"⊸≡¨slots)⊐1)↑slots   # the calendar's end stops them
+}
+Extended ← {𝕊:
+  days ← (0<≠¨)⊸/ •FLines "/dev/stdin"
+  Answer loaded series.More id‿days‿(NewId¨ days)
+}
 Cycled ← {𝕊: r ← (Setting "boundary-presets.tsv") config.Cycle id ⋄ r.ok◶⟨Refused, Out∘{⟨Row 𝕩.name‿𝕩.start‿𝕩.end⟩}⟩ r}
 Usage ← {𝕊: •Out "usage: book <book.txt> balances|preview|save|ask|measures|loci|entries|plans|entry <id>|plan <id>|open ENTRY|PLAN <id>|form NEW - | EDIT <id> | PAY <plan>|refund <id> <day>" ⋄ •Exit 2}
-commands ← "balances"‿"preview"‿"save"‿"ask"‿"measures"‿"loci"‿"entries"‿"plans"‿"entry"‿"plan"‿"open"‿"form"‿"refund"‿"pool"‿"cycle"‿"view"‿"series"
+commands ← "balances"‿"preview"‿"save"‿"ask"‿"measures"‿"loci"‿"entries"‿"plans"‿"entry"‿"plan"‿"open"‿"form"‿"refund"‿"pool"‿"cycle"‿"view"‿"series"‿"slots"‿"more"
 (⊑commands⊐<command)◶⟨
   Balances, Preview, Save, Ask
   {𝕊: Listed view.measures}, {𝕊: Listed view.loci}, {𝕊: Listed view.entries}, {𝕊: Listed view.plans}   # as values
   {𝕊: Edited "TX"}, {𝕊: Edited "PLAN"}
   Opened, Filled, Refunded
-  Pooled, Cycled, Viewed, Serial
+  Pooled, Cycled, Viewed, Serial, Slotted, Extended
   Usage
 ⟩ @

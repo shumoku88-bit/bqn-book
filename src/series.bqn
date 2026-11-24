@@ -14,9 +14,17 @@
 #   book Watch rules‿today‿months
 #                          → per series, ⟨its coverage rule's index or ¯1, the
 #                            first month that rule expects and nothing fills, or ""⟩
-#   book Ask lines         → the answer lines (SERIES, SERIES-OF), as the samples say
+#   Slot anchor‿every‿k    → the k-th day every so many months after anchor: its
+#                            day of the month kept, or ⟨"MISSING", year-month, day⟩
+#                            when that month has no such day (a person dates it),
+#                            or "NONE" outside the calendar
+#   s More source‿days‿ids → the change adding plans like the open plan source, on
+#                            those days with those IDs, or {ok⇐0, code}
+#   book Ask lines         → the answer lines (SERIES, SERIES-OF, SLOT), as the
+#                            samples say
 
 read ← •Import "read.bqn"
+change ← •Import "change.bqn"
 tab ← @+9
 Join ← {1↓∾(tab∾⊢)¨𝕩}
 Refuse ← {why←𝕩 ⋄ {ok⇐0, code⇐why}}
@@ -74,6 +82,32 @@ Watch ⇐ {b 𝕊 rules‿today‿months:
   {𝕊 s: r ← ⊑ watching ⊐ <(⊑s)⊑shaped ⋄ (r<≠rules)◶⟨¯1‿"", {𝕊: r ⋈ Missing r}⟩ @}¨ Series b
 }
 
+# Filling the coming months: the k-th occurrence keeps the anchor's day, never
+# clamped to another day (household/schedule.ml slot).
+Slot ⇐ {𝕊 anchor‿every‿k:
+  m ← (Month anchor) + k×every
+  y ← ⌊m÷12
+  day ← •ParseFloat 8↓anchor
+  date ← (MonthText m)∾"-"∾¯2↑"0"∾•Fmt day
+  (y<1) ∨ y>9999 ? "NONE" ;
+  𝕊 anchor‿every‿k:
+  m ← (Month anchor) + k×every
+  date ← (MonthText m)∾"-"∾8↓anchor
+  read.IsDate date ? date ;
+  𝕊 anchor‿every‿k:
+  ⟨"MISSING", MonthText (Month anchor) + k×every, •Fmt •ParseFloat 8↓anchor⟩
+}
+
+More ⇐ {s 𝕊 source‿days‿ids:
+  b ← s.book
+  p ← ⊑b.plan.id⊐⋈source
+  Copies ← {𝕊:
+    rows ← 2↓ s change.Edit "PLAN"‿source       # its CHANGE lines and ENDPLAN
+    ∾ days {⟨Join "PUT-PLAN"‿"NEW", Join "PLAN"‿𝕩‿𝕨‿(p⊑b.plan.measure)⟩ ∾ rows}¨ ids
+  }
+  ((p<≠b.plan.id) ∧ p⊑(Unpaid b)∾0)◶⟨{𝕊: Refuse "source-not-open"}, Copies⟩ @
+}
+
 # The samples' questions: SERIES lists every series as GROUP lines; SERIES-OF
 # names a plan's series.
 Ask ⇐ {b 𝕊 lines:
@@ -82,9 +116,14 @@ Ask ⇐ {b 𝕊 lines:
     r ← b SeriesOf 1⊑head
     ⟨Join ⟨"SERIES-OF", 1⊑head⟩ ∾ (6=•Type r)◶⟨{𝕊: r⊏b.plan.id}, {𝕊: "REFUSED"‿r.code}⟩ @⟩
   }
-  (⊑"SERIES"‿"SERIES-OF"⊐<⊑head)◶⟨
+  Slotted ← {𝕊:
+    r ← Slot (1⊑head)‿(•ParseFloat 2⊑head)‿(•ParseFloat 3⊑head)
+    ⟨Join (4↑head) ∾ (2=≡r)⊑⟨⋈r, r⟩⟩
+  }
+  (⊑"SERIES"‿"SERIES-OF"‿"SLOT"⊐<⊑head)◶⟨
     {𝕊: ⟨"SERIES"⟩ ∾ ({Join ⟨"GROUP"⟩∾𝕩⊏b.plan.id}¨ Series b) ∾ ⟨"ENDSERIES"⟩}
     Of
+    Slotted
     {𝕊: ⟨Join "REFUSED"‿"unknown-question"⟩}
   ⟩ @
 }

@@ -36,6 +36,8 @@ bin/book book.txt form EDIT <ID> < form   # 訂正。PAY <予定ID> はその予
 bin/book book.txt refund <ID> <日付>     # 返金の変更
 bin/book book.txt pool | cycle <日>     # bk の設定：目安の科目、その日を含む周期
 bin/book book.txt series <今日>        # 予定のまとまり（bk plans と同じ）
+bin/book book.txt slots <起点日> <何か月ごと> <何件>   # 先の月の日付（その日がない月は MISSING）
+bin/book book.txt more <予定> < 日付   # その予定を写した新しい予定の変更
 bin/book book.txt view                 # bk が残高画面で見せる科目
 bin/backup book.txt                  # 保存のあとのバックアップ（帳簿の Git に commit と push。bk と同じ）
 ```
