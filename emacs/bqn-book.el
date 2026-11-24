@@ -4,8 +4,13 @@
 ;; every change goes through bin/book, in tab-separated lines (README.md).
 ;;
 ;;   M-x bqn-book-entries   the entries of `bqn-book-file', in recorded order
-;;     RET   open the entry as a change: edit it, C-c C-p to preview, C-c C-c to save
-;;     +     a new entry, from a template
+;;     +     record a new entry: day, memo, then accounts and amounts, asked one by
+;;           one (an account by its name, an amount like -1200 or +500+300); the
+;;           preview, then saving, as bakhlo's Record form does
+;;     RET   correct the entry in a form: its day, memo, accounts and amounts;
+;;           C-c C-c previews and saves, C-c C-a inserts an account
+;;     r     refund the entry
+;;     e     edit the entry as a change (for exchanges and refunds, which no form opens)
 ;;     g     read the book again
 ;;   M-x bqn-book-demo      the same on a copy of a synthetic sample book
 ;;
@@ -65,8 +70,10 @@ Return (EXIT . LINES)."
 
 (defvar-keymap bqn-book-entries-mode-map
   :parent tabulated-list-mode-map
-  "RET" #'bqn-book-edit-entry
+  "RET" #'bqn-book-correct-entry
   "+" #'bqn-book-new-entry
+  "r" #'bqn-book-refund-entry
+  "e" #'bqn-book-edit-entry
   "g" #'bqn-book-refresh)
 
 (define-derived-mode bqn-book-entries-mode tabulated-list-mode "Book"
@@ -167,22 +174,6 @@ C-c C-p previews it, C-c C-c saves it, C-c C-k discards it."
       (`(0 . ,lines) (bqn-book--change lines id))
       (`(,_ . ,lines) (user-error "%s" (string-join lines " "))))))
 
-(defun bqn-book--new-id ()
-  "A fresh entry ID, as bakhlo makes them: entry- and 24 hex digits."
-  (concat "entry-" (substring (secure-hash 'sha256 (format "%s%s" (random) (current-time))) 0 24)))
-
-(defun bqn-book-new-entry ()
-  "Open a template for a new entry."
-  (interactive)
-  (let ((measure (caar (bqn-book--rows bqn-book--file "measures"))))
-    (bqn-book--change
-     (list "PUT-ENTRY\tNEW\t-"
-           (format "TX\t%s\t%s\tDESC\t" (bqn-book--new-id) (format-time-string "%Y-%m-%d"))
-           (format "EFFECT\t\t%s\t" measure)
-           (format "EFFECT\t\t%s\t" measure)
-           "ENDTX")
-     "new")))
-
 (defun bqn-book--refusal (lines)
   "Say why bin/book refused, from its LINES."
   (message "Refused: %s" (string-remove-prefix "REFUSED\t" (string-join lines " "))))
@@ -214,6 +205,149 @@ C-c C-p previews it, C-c C-c saves it, C-c C-k discards it."
   "Close this change without saving."
   (interactive)
   (kill-buffer))
+
+;;;; The Record form
+
+(defun bqn-book--accounts (file)
+  "The accounts offered for new entries in FILE: (\"name (id)\" . id)."
+  (delq nil (mapcar (lambda (row)
+                      (pcase-let ((`(,id ,label ,_help ,hidden ,_role) row))
+                        (unless (equal hidden "HIDDEN")
+                          (cons (format "%s (%s)" (bqn-book--shown label) id) id))))
+                    (bqn-book--rows file "loci"))))
+
+(defun bqn-book--read-account (file prompt)
+  "Ask for an account of FILE by its name; nil when left empty."
+  (let* ((accounts (bqn-book--accounts file))
+         (choice (completing-read prompt accounts nil t)))
+    (unless (string-empty-p choice) (cdr (assoc choice accounts)))))
+
+(defun bqn-book--save-change (file change list)
+  "Preview CHANGE (lines) on FILE, ask, and save it; then reread LIST.
+Return non-nil when saved."
+  (pcase (bqn-book--call file '("preview") (concat (string-join change "\n") "\n"))
+    (`(0 . ,added)
+     (with-current-buffer (get-buffer-create "*book preview*")
+       (let ((inhibit-read-only t))
+         (erase-buffer)
+         (insert (mapconcat #'bqn-book--shown (cdr added) "\n") "\n"))
+       (special-mode))
+     (display-buffer "*book preview*")
+     (when (y-or-n-p "Save this? ")
+       (pcase (bqn-book--call file '("save") (concat (string-join change "\n") "\n"))
+         (`(0 . ,_)
+          (when (buffer-live-p list) (with-current-buffer list (revert-buffer)))
+          (message "Saved.") t)
+         (`(,_ . ,lines) (bqn-book--refusal lines) nil))))
+    (`(,_ . ,lines) (bqn-book--refusal lines) nil)))
+
+(defun bqn-book--fill (file mode target lines)
+  "The change FILE's form MODE (NEW, EDIT, PAY) with TARGET makes of LINES, or nil."
+  (pcase (bqn-book--call file (list "form" mode target) (concat (string-join lines "\n") "\n"))
+    (`(0 . ,change) change)
+    (`(,_ . ,out) (bqn-book--refusal out) nil)))
+
+(defvar-local bqn-book--form nil "The form's (MODE TARGET).")
+
+(defvar-keymap bqn-book-form-mode-map
+  "C-c C-c" #'bqn-book-form-submit
+  "C-c C-a" #'bqn-book-form-insert-account
+  "C-c C-k" #'bqn-book-discard
+  "TAB" #'bqn-book-insert-tab)
+
+(define-derived-mode bqn-book-form-mode text-mode "Book form"
+  "A Record form: DAY, MEMO, MEASURE, then ROW key|- account ±amount lines.
+An amount may be an expression (-(500+300)/2). C-c C-c previews and saves,
+C-c C-a inserts an account by its name, C-c C-k discards."
+  (setq-local indent-tabs-mode t)
+  (setq-local tab-width 12)
+  (setq-local font-lock-defaults '((("^[A-Z]+" . font-lock-keyword-face)))))
+
+(defun bqn-book--form-buffer (file list mode target lines)
+  "Open LINES as a form of MODE for TARGET on FILE, from LIST."
+  (let ((buffer (generate-new-buffer (format "*book form %s*" (if (equal target "-") "new" target)))))
+    (with-current-buffer buffer
+      (bqn-book-form-mode)
+      (setq bqn-book--file file
+            bqn-book--list-buffer list
+            bqn-book--form (list mode target))
+      (insert (string-join lines "\n") "\n")
+      (goto-char (point-min)))
+    (pop-to-buffer buffer)
+    (message "C-c C-c preview and save, C-c C-a account, C-c C-k discard")
+    buffer))
+
+(defun bqn-book-form-insert-account ()
+  "Insert an account ID, chosen by its name."
+  (interactive)
+  (let ((id (bqn-book--read-account bqn-book--file "Account: ")))
+    (when id (insert id))))
+
+(defun bqn-book-form-submit ()
+  "Make the entry this form describes, preview it, and save it when asked to."
+  (interactive)
+  (pcase-let* ((`(,mode ,target) bqn-book--form)
+               (lines (split-string (buffer-string) "\n" t))
+               (change (bqn-book--fill bqn-book--file mode target lines)))
+    (when (and change (bqn-book--save-change bqn-book--file change bqn-book--list-buffer))
+      (kill-buffer))))
+
+(defun bqn-book-new-entry ()
+  "Record a new entry: asked one field at a time, as bakhlo's Record form does."
+  (interactive)
+  (let* ((file bqn-book--file)
+         (list (current-buffer))
+         (day (read-string "Day: " (format-time-string "%Y-%m-%d")))
+         (memo (read-string "Memo: "))
+         (measures (mapcar #'car (bqn-book--rows file "measures")))
+         (measure (if (cdr measures) (completing-read "Measure: " measures nil t nil nil (car measures))
+                    (car measures)))
+         (rows '()))
+    (while (let ((account (bqn-book--read-account
+                           file (format "Account %d (empty to finish): " (1+ (length rows))))))
+             (when account
+               (push (format "ROW\t-\t%s\t%s" account
+                             (read-string (format "Amount for %s (-1200, +500+300): " account)))
+                     rows))))
+    (let* ((lines (append (list (concat "DAY\t" day) (concat "MEMO\t" memo) (concat "MEASURE\t" measure))
+                          (nreverse rows)))
+           (change (bqn-book--fill file "NEW" "-" lines)))
+      (if change
+          (bqn-book--save-change file change list)
+        ;; refused: keep what was typed in a form, to fix and try again
+        (bqn-book--form-buffer file list "NEW" "-" lines)))))
+
+(defun bqn-book--day-and-memo (file id)
+  "Entry ID's day and memo in FILE, the memo as typed (a form line holds tabs)."
+  (let ((row (assoc id (bqn-book--rows file "entries"))))
+    (list (nth 1 row)
+          (replace-regexp-in-string
+           "\\\\\\([t\\\\]\\)" (lambda (m) (if (equal (match-string 1 m) "t") "\t" "\\"))
+           (nth 2 row) t t))))
+
+(defun bqn-book-correct-entry ()
+  "Correct the entry at point in a form; an entry no form opens opens as a change."
+  (interactive)
+  (let ((id (tabulated-list-get-id)))
+    (unless id (user-error "No entry here"))
+    (pcase (bqn-book--call bqn-book--file (list "open" "ENTRY" id))
+      (`(0 . ,rows)
+       (pcase-let ((`(,day ,memo) (bqn-book--day-and-memo bqn-book--file id)))
+         (bqn-book--form-buffer bqn-book--file (current-buffer) "EDIT" id
+                                (append (list (concat "DAY\t" day) (concat "MEMO\t" memo)) rows))))
+      (`(,_ . ,lines)
+       (message "%s; opening it as a change" (string-join lines " "))
+       (bqn-book-edit-entry)))))
+
+(defun bqn-book-refund-entry ()
+  "Refund the entry at point: a new entry that reverses it, after a preview."
+  (interactive)
+  (let ((id (tabulated-list-get-id)))
+    (unless id (user-error "No entry here"))
+    (pcase (bqn-book--call bqn-book--file
+                           (list "refund" id (read-string "Day: " (format-time-string "%Y-%m-%d"))))
+      (`(0 . ,change) (bqn-book--save-change bqn-book--file change (current-buffer)))
+      (`(,_ . ,lines) (bqn-book--refusal lines)))))
 
 (provide 'bqn-book)
 ;;; bqn-book.el ends here

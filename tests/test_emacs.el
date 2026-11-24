@@ -2,6 +2,7 @@
 ;; emacs --batch -l tests/test_emacs.el -f ert-run-tests-batch-and-exit
 
 (require 'ert)
+(require 'cl-lib)
 (load (expand-file-name "../emacs/bqn-book.el" (file-name-directory load-file-name)) nil t)
 
 (defun test-bqn-book--copy ()
@@ -12,42 +13,71 @@
                copy)
     copy))
 
-(ert-deftest bqn-book-lists-entries-in-recorded-order ()
-  (let ((bqn-book-file nil) (copy (test-bqn-book--copy)))
-    (with-current-buffer (save-window-excursion (bqn-book-entries copy) (current-buffer))
-      (should (equal (mapcar #'car tabulated-list-entries) '("tx-0001" "tx-0002" "tx-0003" "tx-0004")))
-      (should (equal (aref (cadr (assoc "tx-0001" tabulated-list-entries)) 3) "January pay")))))
+(defun test-bqn-book--text (file)
+  (with-temp-buffer (insert-file-contents file) (buffer-string)))
 
-(ert-deftest bqn-book-edits-an-entry-and-saves-it ()
-  (let* ((copy (test-bqn-book--copy))
-         (list (save-window-excursion (bqn-book-entries copy) (current-buffer))))
+(defmacro test-bqn-book--answering (answers &rest body)
+  "Run BODY with the minibuffer answering ANSWERS in turn, and saying yes."
+  `(let ((answers ,answers))
+     (cl-letf (((symbol-function 'read-string) (lambda (&rest _) (pop answers)))
+               ((symbol-function 'completing-read) (lambda (&rest _) (pop answers)))
+               ((symbol-function 'y-or-n-p) (lambda (&rest _) t)))
+       ,@body)))
+
+(defun test-bqn-book--list (copy)
+  (save-window-excursion (bqn-book-entries copy) (current-buffer)))
+
+(ert-deftest bqn-book-lists-entries-in-recorded-order ()
+  (with-current-buffer (test-bqn-book--list (test-bqn-book--copy))
+    (should (equal (mapcar #'car tabulated-list-entries) '("tx-0001" "tx-0002" "tx-0003" "tx-0004")))
+    (should (equal (aref (cadr (assoc "tx-0001" tabulated-list-entries)) 3) "January pay"))))
+
+(ert-deftest bqn-book-records-a-new-entry-asked-field-by-field ()
+  (let* ((copy (test-bqn-book--copy)) (list (test-bqn-book--list copy)))
+    (with-current-buffer list
+      (test-bqn-book--answering
+       '("2027/2/3" "lunch" "Bank (bank)" "-(500+300)/2" "Wallet (wallet)" "+400" "")
+       (save-window-excursion (bqn-book-new-entry))))
+    (should (string-match-p "\tDESC\tlunch\nEFFECT\tbank\tjpy\t-400\nEFFECT\twallet\tjpy\t400\nENDTX"
+                            (test-bqn-book--text copy)))
+    (with-current-buffer list (should (= 5 (length tabulated-list-entries))))))
+
+(ert-deftest bqn-book-corrects-an-entry-in-a-form ()
+  (let* ((copy (test-bqn-book--copy)) (list (test-bqn-book--list copy)))
     (with-current-buffer list
       (goto-char (point-min))
       (search-forward "tx-0002")
-      (save-window-excursion (bqn-book-edit-entry)))
-    (let ((change (get-buffer "*book change tx-0002*")))
-      (with-current-buffer change
-        (should (string-prefix-p "PUT-ENTRY\tREPLACE\t-\nTX\ttx-0002" (buffer-string)))
+      (save-window-excursion (bqn-book-correct-entry)))
+    (let ((form (get-buffer "*book form tx-0002*")))
+      (with-current-buffer form
+        (should (equal (buffer-string)
+                       "DAY\t2027-01-05\nMEMO\t\nMEASURE\tjpy\nROW\t-\tbank\t-20000\nROW\t-\twallet\t20000\n"))
         (goto-char (point-min))
         (while (search-forward "20000" nil t) (replace-match "21000"))
-        (bqn-book-save))
-      (should-not (buffer-live-p change)))
-    (with-temp-buffer
-      (insert-file-contents copy)
-      (should (search-forward "EFFECT\tbank\tjpy\t-21000" nil t)))))
+        (test-bqn-book--answering '() (bqn-book-form-submit)))
+      (should-not (buffer-live-p form)))
+    (should (string-match-p "TX\ttx-0002\t2027-01-05\nEFFECT\tbank\tjpy\t-21000" (test-bqn-book--text copy)))))
 
-(ert-deftest bqn-book-refuses-and-keeps-the-change ()
+(ert-deftest bqn-book-keeps-a-refused-form-to-fix ()
   (let* ((copy (test-bqn-book--copy))
-         (before (with-temp-buffer (insert-file-contents copy) (buffer-string)))
-         (list (save-window-excursion (bqn-book-entries copy) (current-buffer))))
-    (with-current-buffer list (save-window-excursion (bqn-book-new-entry)))
-    (let ((change (car (seq-filter (lambda (b) (string-prefix-p "*book change new" (buffer-name b)))
-                                   (buffer-list)))))
-      (with-current-buffer change
-        (should (string-prefix-p "PUT-ENTRY\tNEW\t-\nTX\tentry-" (buffer-string)))
-        (bqn-book-save)                 ; the template has no amounts yet
-        (should (buffer-live-p change))
-        (kill-buffer change)))
-    (should (equal before (with-temp-buffer (insert-file-contents copy) (buffer-string))))))
+         (before (test-bqn-book--text copy))
+         (list (test-bqn-book--list copy)))
+    (with-current-buffer list
+      (test-bqn-book--answering '("2027-02-03" "" "Bank (bank)" "-5" "Wallet (wallet)" "4" "")
+                                (save-window-excursion (bqn-book-new-entry))))
+    (let ((form (get-buffer "*book form new*")))
+      (should (buffer-live-p form))
+      (should (string-match-p "ROW\t-\twallet\t4" (with-current-buffer form (buffer-string))))
+      (kill-buffer form))
+    (should (equal before (test-bqn-book--text copy)))))
+
+(ert-deftest bqn-book-refunds-an-entry ()
+  (let* ((copy (test-bqn-book--copy)) (list (test-bqn-book--list copy)))
+    (with-current-buffer list
+      (goto-char (point-min))
+      (search-forward "tx-0002")
+      (test-bqn-book--answering '("2027-02-04") (save-window-excursion (bqn-book-refund-entry))))
+    (should (string-match-p "DESC\tRefund\nEFFECT\tbank\tjpy\t20000\nEFFECT\twallet\tjpy\t-20000\nREVERSAL-OF\ttx-0002"
+                            (test-bqn-book--text copy)))))
 
 ;;; test_emacs.el ends here
