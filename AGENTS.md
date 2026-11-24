@@ -32,6 +32,8 @@ Screens (a TUI, a GUI) must stay replaceable. Keep three layers:
 - State rules as data where the specification is a table (see the reference rules in
   `src/read.bqn`), and let a rule's place carry its order.
 - Names are case-insensitive and ignore underscores: `Lines`, `lines` and `_lines` clash.
+  A local `block` silently turns a call of `Block` into a constant. `tests/names.py`
+  (in `./check.sh`) reports such pairs; name functions and values apart.
 - Try uncertain primitives in a small `bqn -e` probe; numbers are exact only up to 2⋆53.
 - BQN evaluates right to left: `(A) ∧ B` runs B first. Write one effect per line or step.
 - A block that never uses 𝕩 or 𝕨 is evaluated at once; give it `𝕊:` to make it a function.

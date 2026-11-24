@@ -54,7 +54,7 @@ Print ⇐ {𝕊 b:
     "HISTORY-FROM"_lines ⟨b.historyFrom.locus, b.historyFrom.measure, b.historyFrom.day⟩
     anchors
     "ITEM"_lines ⟨b.item.id, b.item.due, b.item.when, Escape¨b.item.context⟩
-    "CLOSE"_lines ⟨b.close.item, b.close.day, b.close.kind⟩
+    "CLOSE"_lines ⟨b.close.item, b.close.day, b.close.how⟩
     ⟨"END"⟩
   ⟩
 }

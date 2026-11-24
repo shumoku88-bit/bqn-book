@@ -25,10 +25,10 @@ reprinted ← {(•file.Bytes dir∾𝕩) ≡ •ToUTF8 print.Print Book 𝕩}¨
 Assert ∧´reprinted
 
 Balanced ← {𝕊 file:
-  asks ← "BALANCE" Asks (¯3↓file)∾"answers"
-  got ← (Book file) balance.Balances 1‿2⊸⊏¨asks
-  want ← {𝕩≡"UNKNOWN" ? @ ; •ParseFloat 𝕩}∘(3⊸⊑)¨asks
-  {•Out "balance: "∾•Fmt 𝕩}¨ (got≢¨want)/asks
+  questions ← "BALANCE" Asks (¯3↓file)∾"answers"
+  got ← (Book file) balance.Balances 1‿2⊸⊏¨questions
+  want ← {𝕩≡"UNKNOWN" ? @ ; •ParseFloat 𝕩}∘(3⊸⊑)¨questions
+  {•Out "balance: "∾•Fmt 𝕩}¨ (got≢¨want)/questions
   got≡want
 }
 Assert ∧´Balanced¨oks

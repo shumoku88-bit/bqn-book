@@ -3,6 +3,7 @@
 # synthetic book, the command line, and whether the copied samples are still bakhlo's.
 set -eu
 cd "$(dirname "$0")"
+python3 tests/names.py
 bqn tests/test_book.bqn
 bqn tests/test_change.bqn
 bqn tests/test_store.bqn

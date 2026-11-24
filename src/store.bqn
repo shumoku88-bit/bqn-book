@@ -25,7 +25,7 @@ unlink ← libc •FFI "i32"‿"unlink"‿"*u8:c8"
 C ← {(•ToUTF8 𝕩)∾@}                      # a path for libc
 readWrite‿writeOnly‿create‿exclusive ← 2‿1‿512‿2048
 barrier‿full ← 85‿51                    # F_BARRIERFSYNC, F_FULLFSYNC
-Refuse ← {c←𝕩 ⋄ {ok⇐0, code⇐c}}
+Refuse ← {why←𝕩 ⋄ {ok⇐0, code⇐why}}
 
 # change.bqn's book, with where it came from
 Placed ← {

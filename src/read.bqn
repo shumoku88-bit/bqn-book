@@ -116,7 +116,7 @@ Utf8 ← {𝕊 bytes:
   (0≡s)◶⟨Canonical,0˙⟩ s
 }
 
-Lines ← {𝕊 bytes:
+ReadLines ← {𝕊 bytes:
   0=≠bytes ? Refusal ⟨"bad-header"‿1‿0⟩ ;
   𝕊 bytes:
   nl ← lf=bytes
@@ -126,7 +126,7 @@ Lines ← {𝕊 bytes:
   crlf ← {(0<≠𝕩) ∧ cr=¯1⊑' '∾𝕩}¨raw
   lines ← (-crlf)↓¨raw
   n ← 1+↕count
-  lines Ends _gate ∾⟨
+  lines Bounded _gate ∾⟨
     (¬final)/⟨"no-final-newline"‿count‿0⟩
     "crlf" Report ⟨crlf/n, 1⟩
     "not-utf8" Report ⟨(¬Utf8¨lines)/n, 2⟩
@@ -134,7 +134,7 @@ Lines ← {𝕊 bytes:
 }
 
 # The first line names the format; END is the last line.
-Ends ← {
+Bounded ← {
   ("BOOK"∾tab∾"1") ≢ ⊑𝕩 ? Refusal ⟨"bad-header"‿1‿0⟩ ;
   (⊑𝕩⊐⟨"END"⟩) EndAt 𝕩
 }
@@ -238,8 +238,8 @@ Fields ← {𝕊 lines:
 References ← {𝕊 lines:
   n‿f‿k‿h ← lines
   Of ← {k=Kind 𝕩}
-  Col ← {kind 𝕊 i: i⊑¨(Of kind)/f}              # field i of each line of the kind
-  Owner ← {head 𝕊 kind: (/Of head)⊐(Of kind)/h}  # its TX, PLAN or ANCHOR, by index
+  Col ← {name 𝕊 i: i⊑¨(Of name)/f}              # field i of each line of that kind
+  Owner ← {head 𝕊 name: (/Of head)⊐(Of name)/h}  # its TX, PLAN or ANCHOR, by index
   Rows ← {<˘⍉>𝕩}                                 # aligned columns → rows
   Among ← {m 𝕊 x: (¬∊m/x)⌾(m⊸/) 0¨x}            # repeats among the items m selects
   measures‿loci‿txs‿plans‿items ← Col⟜1¨"MEASURE"‿"LOCUS"‿"TX"‿"PLAN"‿"ITEM"
@@ -265,8 +265,8 @@ References ← {𝕊 lines:
   rt ← "TX" Owner "REVERSAL-OF"
   reversed ← "REVERSAL-OF" Col 1
   known ← reversed∊txs
-  ends ← ∾(known/rt⊏txs)⋈¨known/reversed
-  reused ← (known/reversed≡¨rt⊏txs) ∨ ∨˝˘(2÷˜≠ends)‿2⥊(⊐˜ends) < 2×⌊2÷˜↕≠ends
+  endpoints ← ∾(known/rt⊏txs)⋈¨known/reversed
+  reused ← (known/reversed≡¨rt⊏txs) ∨ ∨˝˘(2÷˜≠endpoints)‿2⥊(⊐˜endpoints) < 2×⌊2÷˜↕≠endpoints
   byTx ← (et∾≠txs)⊔Rows el‿em‿eq
   inverse ← (∧¨(known/rt)⊏byTx) ≢¨ {∧{-⌾(2⊸⊑)𝕩}¨𝕩}¨(txs⊐known/reversed)⊏byTx
   # PLAN
@@ -351,7 +351,7 @@ References ← {𝕊 lines:
       "duplicate-close"‿"CLOSE"‿(¬∊closed)
     ⟩
   ⟩
-  faults ← ∾ rules {code‿kind‿fault 𝕊 order: {⟨code,𝕩,order⟩}¨ fault/(Of kind)/n}¨ ↕≠rules
+  faults ← ∾ rules {code‿what‿fault 𝕊 order: {⟨code,𝕩,order⟩}¨ fault/(Of what)/n}¨ ↕≠rules
 
   # The admitted book: one namespace per section, its columns aligned on that
   # section's lines; a block line names its TX, PLAN or ANCHOR by index.
@@ -378,12 +378,12 @@ References ← {𝕊 lines:
     also ⇐ {anchor⇐aa ⋄ tx⇐alsoTx}
     assert ⇐ {anchor⇐"ANCHOR" Owner "ASSERT" ⋄ locus‿measure⇐"ASSERT"⊸Col¨1‿2 ⋄ amount⇐Number¨"ASSERT" Col 3}
     item ⇐ {id⇐items ⋄ due‿when⇐"ITEM"⊸Col¨2‿3 ⋄ context⇐Unescape¨"ITEM" Col 4}
-    close ⇐ {item‿day‿kind⇐"CLOSE"⊸Col¨1‿2‿3}
+    close ⇐ {item‿day‿how⇐"CLOSE"⊸Col¨1‿2‿3}
   }
   book {{ok⇐1, book⇐𝕩}} _gate faults
 }
 
-Read ⇐ Lines
+Read ⇐ ReadLines
 # Field syntax for other parts that take book text (change.bqn)
 SplitFields ⇐ tab⊸Split
 IsDate ⇐ Date

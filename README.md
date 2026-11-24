@@ -22,7 +22,7 @@ bin/book book.txt preview < change   # 変更を下見：OK と足される行�
 bin/book book.txt save < change      # 保存：SAVED と足された行、または REFUSED <理由>
 ```
 
-`change` は bakhlo の見本と同じ書き方（`tests/fixtures/records/README.md`）。今は `PUT-ENTRY NEW`（記帳を足す）、`CORRECT-ENTRY-DATE`（日付だけの訂正）、`CLASSIFY-MERCHANT`（店の分類）。
+`change` は bakhlo の見本と同じ書き方（`tests/fixtures/records/README.md`）。今は `PUT-ENTRY NEW`・`REPLACE`（記帳を足す・訂正する）、`CORRECT-ENTRY-DATE`（日付だけの訂正）、`CLASSIFY-MERCHANT`（店の分類）。
 
 ```
 PUT-ENTRY	NEW	-
