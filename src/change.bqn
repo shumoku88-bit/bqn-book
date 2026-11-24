@@ -300,35 +300,30 @@ Edit ⇐ {s 𝕊 head‿id:
   Show _unless ⟨(isTx⊑"unknown-plan"‿"unknown-entry")‿(¬⊑(⋈id)∊isTx⊑s.book.plan.id‿s.book.tx.id)⟩
 }
 
+# The commands, as a table: a name, and how it runs on the session given its
+# line's fields (padded) and the lines of its block. Apply splits the lines at
+# these names; PUT-ENTRY and PUT-PLAN also say NEW or REPLACE, or are no command.
+_choosing ← {s Run _choosing f‿block:
+  {𝕊: s Run f‿block} _unless ⟨("unsupported-change:"∾⊑f)‿(¬⊑(⋈1⊑f)∊"NEW"‿"REPLACE")⟩
+}
+runs ← ⟨
+  "PUT-ENTRY"‿({s 𝕊 f‿block: s PutEntry ⟨"REPLACE"≡1⊑f, 2⊑f, block⟩}_choosing)
+  "PUT-PLAN"‿({s 𝕊 f‿block: s PutPlan ⟨"REPLACE"≡1⊑f, block⟩}_choosing)
+  "CANCEL-PLAN"‿{s 𝕊 f‿block: s CancelPlan 1↓3↑f}
+  "CORRECT-ENTRY-DATE"‿{s 𝕊 f‿block: s CorrectDate 1↓3↑f}
+  "CLASSIFY-MERCHANT"‿{s 𝕊 f‿block: s Classify 1↓4↑f}
+  "ADD-LOCUS"‿{s 𝕊 f‿block: s AddLocus 1↓2↑f}
+  "SET-LOCUS-LABEL"‿{s 𝕊 f‿block: s LabelLocus 1↓3↑f}
+  "SET-ROLE"‿{s 𝕊 f‿block: s SetRole 1↓3↑f}
+⟩
+commands ← ⊑¨runs
+
 # One change: its command line and the lines of its block.
 Change ← {s 𝕊 c:
-  command ← Fields ⊑c
-  ("PUT-ENTRY"≡⊑command) ∧ ⊑(⋈1⊑command∾<"")∊"NEW"‿"REPLACE" ? s PutEntry ⟨"REPLACE"≡1⊑command, 2⊑3 Pad command, 1↓c⟩ ;
-  s 𝕊 c:
-  command ← 3 Pad Fields ⊑c
-  "CORRECT-ENTRY-DATE"≡⊑command ? s CorrectDate 1↓command ;
-  s 𝕊 c:
-  command ← 4 Pad Fields ⊑c
-  "CLASSIFY-MERCHANT"≡⊑command ? s Classify 1↓command ;
-  s 𝕊 c:
-  command ← 3 Pad Fields ⊑c
-  ("PUT-PLAN"≡⊑command) ∧ ⊑(⋈1⊑command)∊"NEW"‿"REPLACE" ? s PutPlan ⟨"REPLACE"≡1⊑command, 1↓c⟩ ;
-  s 𝕊 c:
-  command ← 3 Pad Fields ⊑c
-  "CANCEL-PLAN"≡⊑command ? s CancelPlan 1↓command ;
-  s 𝕊 c:
-  command ← 3 Pad Fields ⊑c
-  "ADD-LOCUS"≡⊑command ? s AddLocus 1↑1↓command ;
-  s 𝕊 c:
-  command ← 3 Pad Fields ⊑c
-  "SET-LOCUS-LABEL"≡⊑command ? s LabelLocus 1↓command ;
-  s 𝕊 c:
-  command ← 3 Pad Fields ⊑c
-  "SET-ROLE"≡⊑command ? s SetRole 1↓command ;
-  Refuse "unsupported-change:"∾⊑Fields ⊑𝕩
+  f ← 4 Pad Fields ⊑c
+  s (⊑commands⊐<⊑f)◶(1⊑¨runs) f‿(1↓c)
 }
 
-commands ← "PUT-ENTRY"‿"PUT-PLAN"‿"CANCEL-PLAN"‿"CORRECT-ENTRY-DATE"‿"CLASSIFY-MERCHANT"‿"ADD-LOCUS"‿"SET-LOCUS-LABEL"‿"SET-ROLE"
 Apply ⇐ {s 𝕊 lines:
   starts ← (⊑∘Fields¨lines)∊commands
   changes ← (¯1++`starts)⊔lines
