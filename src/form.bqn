@@ -26,6 +26,7 @@ Refuse ← result.Refuse
 IsCode ← result.IsCode
 _then ← result._then
 _unless ← result._unless
+_either_ ← result._either_
 
 # ---- days ----
 
@@ -86,6 +87,12 @@ RowAmount ← {scale 𝕊 text:
   r.ok◶⟨{𝕊: r.code}, {𝕊: (¯1⋆'-'=⊑text∾' ')×r.value}⟩ @
 }
 
+# What the book says of a change a form made: the change, or admission:<its code>.
+Admitted ← {s 𝕊 asked: asked˙ _either_ {Refuse "admission:"∾𝕩.code} s change.Apply asked}
+# The first row a rule finds wrong, as bakhlo names it: ⟨postings:row-<n>: <code>,
+# whether any⟩. codes: each row's code, where bad says it is wrong.
+FirstRow ← {codes 𝕊 bad: ⟨⊑((/bad) {"postings:row-"∾(•Fmt 1+𝕨)∾": "∾𝕩}¨ bad/codes)∾<"", ∨´bad⟩}
+
 # The entry a form makes, checked in bakhlo's order: day, rows, the original's
 # Measure, balance; then the book (admission:<its code>). EDIT keeps the entry's ID,
 # its links, original and merchant, and a row's key only where the entry had that
@@ -104,43 +111,38 @@ Fill ⇐ {s 𝕊 mode‿target‿id‿lines:
   day ↩ TypedDay day
   quanta ← (b ScaleOf measure) RowAmount¨ texts
   bad ← IsCode¨quanta
-  Row ← {"postings:row-"∾(•Fmt 1+𝕨)∾": "∾𝕩}
   # EDIT: the old entry's keys stay only on their own accounts
   old ← (b.effect.tx=t)/b.effect.key⋈¨b.effect.locus
   keys ↩ edit◶⟨{0=≠𝕩 ? "" ; "-"≡𝕩 ? "" ; 𝕩}¨, {((𝕩⋈¨loci)∊old) {𝕨 ? 𝕩 ; ""}¨ 𝕩}⟩ keys
-  Write ← {𝕊:
-    tx ← ⟨Join ⟨"TX", edit⊑id‿target, day⟩ ∾ (0<≠memo)/⟨"DESC", print.Escape memo⟩⟩
-    tx ∾↩ {Join ⟨"EFFECT", 𝕨, measure, print.Int 1⊑𝕩⟩ ∾ (0<≠⊑𝕩)/⋈⊑𝕩}´¨ loci ⋈¨ keys ⋈¨ quanta
+  AsEntry ← {𝕊:
     Links ← {𝕊:                          # what EDIT keeps: links, original, merchant
-      old ← 1↓¯1↓ s change.Edit "TX"‿target
-      ((⊑∘read.SplitFields¨old)∊"REVERSAL-OF"‿"ORIGINAL"‿"MERCHANT"‿"NONMERCHANT"‿"EXCHANGE")/old
+      kept ← 1↓¯1↓ s change.Edit "TX"‿target
+      ((⊑∘read.SplitFields¨kept)∊"REVERSAL-OF"‿"ORIGINAL"‿"MERCHANT"‿"NONMERCHANT"‿"EXCHANGE")/kept
     }
-    kept ← edit◶⟨⟨⟩˙, Links⟩ @
-    tx ∾↩ kept ∾ {Join 3↑𝕩}¨ (¬edit)/originals            # NEW and PAY: the original as typed
-    tx ∾↩ ⟨"ENDTX"⟩
-    head ← Join ⟨"PUT-ENTRY", edit⊑"NEW"‿"REPLACE", ("PAY"≡mode)⊑"-"‿target⟩
-    r ← s change.Apply ⟨head⟩∾tx
-    r.ok◶⟨{𝕊: Refuse "admission:"∾r.code}, (⟨head⟩∾tx)˙⟩ @
+    s Admitted ∾⟨
+      ⟨Join ⟨"PUT-ENTRY", edit⊑"NEW"‿"REPLACE", ("PAY"≡mode)⊑"-"‿target⟩⟩
+      ⟨Join ⟨"TX", edit⊑id‿target, day⟩ ∾ (0<≠memo)/⟨"DESC", print.Escape memo⟩⟩
+      {Join ⟨"EFFECT", 𝕨, measure, print.Int 1⊑𝕩⟩ ∾ (0<≠⊑𝕩)/⋈⊑𝕩}´¨ loci ⋈¨ keys ⋈¨ quanta
+      edit◶⟨⟨⟩˙, Links⟩ @
+      {Join 3↑𝕩}¨ (¬edit)/originals                  # NEW and PAY: the original as typed
+      ⟨"ENDTX"⟩
+    ⟩
   }
   # a plan, as bakhlo builds one (household/record.ml build_plan): new, or in the
   # place of the open plan it changes, with the same ID
-  Schedule ← {𝕊:
+  AsPlan ← {𝕊:
     new ← "-"≡target
-    block ← ∾⟨
-      ⟨Join "PLAN"‿(new⊑target‿id)‿day‿measure⟩
+    s Admitted ∾⟨
+      ⟨Join "PUT-PLAN"‿(new⊑"REPLACE"‿"NEW"), Join "PLAN"‿(new⊑target‿id)‿day‿measure⟩
       loci {Join "CHANGE"‿𝕨‿(print.Int 𝕩)}¨ quanta
       ⟨"ENDPLAN"⟩
     ⟩
-    head ← Join "PUT-PLAN"‿(new⊑"REPLACE"‿"NEW")
-    r ← s change.Apply ⟨head⟩∾block
-    r.ok◶⟨{𝕊: Refuse "admission:"∾r.code}, (⟨head⟩∾block)˙⟩ @
   }
-  Made ← plan◶⟨Write, Schedule⟩
-  Made _unless ⟨
+  plan◶⟨AsEntry, AsPlan⟩ _unless ⟨
     "day-format"‿("invalid-date"≡day)
     "postings:posting-required"‿(0=≠quanta)
-    (⊑((bad/↕≠bad) Row¨ bad/quanta)∾<"")‿(∨´bad)
-    (⊑(((0=≠¨loci)/↕≠loci) Row¨ <"empty-locus")∾<"")‿(∨´0=≠¨loci)
+    quanta FirstRow bad
+    ((≠loci)⥊<"empty-locus") FirstRow 0=≠¨loci
     "original-measure"‿((¬edit∨plan) ∧ ∨´¬(1⊑¨originals)∊b.measure.id)
     "unbalanced"‿(0≠+´(¬bad)/quanta)
   ⟩
