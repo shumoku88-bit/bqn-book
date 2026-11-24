@@ -95,7 +95,8 @@ FILE, each a list of fields."
 
 (defvar-local bqn-book--file nil "The book.txt this buffer shows or changes.")
 
-(defvar-keymap bqn-book-entries-mode-map
+(defvar bqn-book-entries-mode-map (make-sparse-keymap))
+(define-keymap :keymap bqn-book-entries-mode-map   ; again on reload: a new key takes effect
   :parent tabulated-list-mode-map
   "RET" #'bqn-book-correct-entry
   "+" #'bqn-book-new-entry
@@ -160,7 +161,8 @@ FILE, each a list of fields."
 
 (defvar-local bqn-book--list-buffer nil "The entries buffer a change came from.")
 
-(defvar-keymap bqn-book-change-mode-map
+(defvar bqn-book-change-mode-map (make-sparse-keymap))
+(define-keymap :keymap bqn-book-change-mode-map   ; again on reload: a new key takes effect
   "C-c C-p" #'bqn-book-preview
   "C-c C-c" #'bqn-book-save
   "C-c C-k" #'bqn-book-discard
@@ -290,7 +292,8 @@ Return non-nil when saved."
 
 (defvar-local bqn-book--form nil "The form's (MODE TARGET).")
 
-(defvar-keymap bqn-book-form-mode-map
+(defvar bqn-book-form-mode-map (make-sparse-keymap))
+(define-keymap :keymap bqn-book-form-mode-map   ; again on reload: a new key takes effect
   "C-c C-c" #'bqn-book-form-submit
   "C-c C-a" #'bqn-book-form-insert-account
   "C-c C-k" #'bqn-book-discard
@@ -441,7 +444,8 @@ Columns, not characters: a Japanese character takes two."
     (concat (if (< n 0) "-" "") grouped
             (if (> scale 0) (format (format ".%%0%dd" scale) part) ""))))
 
-(defvar-keymap bqn-book-home-mode-map
+(defvar bqn-book-home-mode-map (make-sparse-keymap))
+(define-keymap :keymap bqn-book-home-mode-map   ; again on reload: a new key takes effect
   :parent special-mode-map
   "+" #'bqn-book-new-entry
   "l" #'bqn-book-home-entries
@@ -584,7 +588,8 @@ Change an amount to pay a different one; C-c C-c previews and saves."
   "IDS (joined by commas) by their NAMES, joined by +."
   (mapconcat (lambda (l) (or (cdr (assoc l names)) l)) (split-string ids "," t) " + "))
 
-(defvar-keymap bqn-book-series-mode-map
+(defvar bqn-book-series-mode-map (make-sparse-keymap))
+(define-keymap :keymap bqn-book-series-mode-map   ; again on reload: a new key takes effect
   :parent tabulated-list-mode-map
   "RET" #'bqn-book-series-plans
   "g" #'revert-buffer)
@@ -640,7 +645,8 @@ receiving, whatever the amounts. RET shows a series' plans."
 
 (defvar-local bqn-book--series-ids nil "The plans this series buffer shows.")
 
-(defvar-keymap bqn-book-series-plans-mode-map
+(defvar bqn-book-series-plans-mode-map (make-sparse-keymap))
+(define-keymap :keymap bqn-book-series-plans-mode-map   ; again on reload: a new key takes effect
   :parent tabulated-list-mode-map
   "RET" #'bqn-book-pay-plan
   "p" #'bqn-book-pay-plan
