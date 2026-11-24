@@ -28,29 +28,30 @@ saved ← loaded store.Save loaded change.Apply newSplit
 2 Assert (•file.Bytes book) ≡ •file.Bytes fixtures∾"new-split.after.txt"
 3 Assert (•file.Bytes book∾".prev") ≡ •file.Bytes fixtures∾"base.txt"
 4 Assert ∧´(•file.List dir)∊"book.txt"‿"book.txt.prev"‿"book.txt.lock"
+5 Assert (saved.bytes ≡ •file.Bytes book) ∧ saved.lines ≡ (store.Load book).lines   # it returns the saved book
 
 # K12: somebody else saved after we loaded
 stale ← store.Load book
 other ← stale store.Save stale change.Apply ⟨"PUT-ENTRY"∾tab∾"NEW"∾tab∾"-", "TX"∾tab∾"x"∾tab∾"2027-01-13", "EFFECT"∾tab∾"bank"∾tab∾"jpy"∾tab∾"-1", "EFFECT"∾tab∾"food"∾tab∾"jpy"∾tab∾"1", "ENDTX"⟩
-5 Assert other.ok
+6 Assert other.ok
 before ← •file.Bytes book
 late ← stale store.Save stale change.Apply ⟨"PUT-ENTRY"∾tab∾"NEW"∾tab∾"-", "TX"∾tab∾"y"∾tab∾"2027-01-13", "EFFECT"∾tab∾"bank"∾tab∾"jpy"∾tab∾"-2", "EFFECT"∾tab∾"food"∾tab∾"jpy"∾tab∾"2", "ENDTX"⟩
-6 Assert (¬late.ok) ∧ late.code≡"conflict"
-7 Assert before ≡ •file.Bytes book
+7 Assert (¬late.ok) ∧ late.code≡"conflict"
+8 Assert before ≡ •file.Bytes book
 
 # another process holds the writer lock
 marker ← dir∾"/held"
 •SH "sh"‿"-c"‿("bqn '"∾(•file.At "hold_lock.bqn")∾"' '"∾book∾".lock' '"∾marker∾"' 2 >/dev/null 2>&1 &")
 waited ← {•Delay 0.05 ⋄ 𝕩+1}•_while_{(𝕩<100) ∧ ¬•file.Exists marker} 0   # at most 5 s
-8 Assert •file.Exists marker
+9 Assert •file.Exists marker
 current ← store.Load book
 blocked ← current store.Save current change.Apply ⟨"PUT-ENTRY"∾tab∾"NEW"∾tab∾"-", "TX"∾tab∾"z"∾tab∾"2027-01-14", "EFFECT"∾tab∾"bank"∾tab∾"jpy"∾tab∾"-3", "EFFECT"∾tab∾"food"∾tab∾"jpy"∾tab∾"3", "ENDTX"⟩
-9 Assert (¬blocked.ok) ∧ blocked.code≡"locked"
-10 Assert current.bytes ≡ •file.Bytes book
+10 Assert (¬blocked.ok) ∧ blocked.code≡"locked"
+11 Assert current.bytes ≡ •file.Bytes book
 
 # bakhlo itself reads what was saved, when it is built next to this repository
 bk ← •file.At "../../bakhlo/_build/default/tui/app/bakhlo_tui.exe"
-{𝕊: 11 Assert 0=⊑•SH bk‿"--book"‿book‿"bal"}⍟(•file.Exists bk) @
+{𝕊: 12 Assert 0=⊑•SH bk‿"--book"‿book‿"bal"}⍟(•file.Exists bk) @
 
 •SH "rm"‿"-rf"‿dir
 •Out "test_store: ok"

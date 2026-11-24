@@ -21,6 +21,11 @@ Fields ← read.SplitFields
 Lines ← {m←lf=𝕩 ⋄ ¯1↓((((¬m)×1++`m)-1)∾1++´m)⊔𝕩}
 Refuse ← {c←𝕩 ⋄ {ok⇐0, code⇐c}}
 Pad ← {𝕨↑𝕩∾𝕨⥊<""}                           # at least 𝕨 fields
+Join ← {1↓∾(tab∾⊢)¨𝕩}                        # fields → a line
+Kind ← ⊑Fields
+Amount ← {read.IsInteger 𝕩 ? •ParseFloat 𝕩 ; 0}
+# Write _unless failures: the first ⟨code, true⟩ refuses, else Write runs.
+_unless ← {bad←1⊑¨𝕩 ⋄ (∨´bad)◶⟨𝔽, {Refuse ⊑⊑bad/𝕩}⟩ 𝕩}
 Bytes ⇐ {•ToUTF8 ∾{𝕩∾lf}¨𝕩.lines}
 
 # lines Session reading: the book, or the reading's refusal
@@ -40,6 +45,27 @@ Admit ← {r ← read.Read •ToUTF8 ∾{𝕩∾lf}¨𝕩 ⋄ 𝕩 Session Reaso
 # just before its plan's ENDPLAN.
 later ← "PLAN"‿"ZERO-ORIGIN"‿"OPENING"‿"HISTORY-FROM"‿"ANCHOR"‿"ITEM"‿"CLOSE"‿"END"
 Insert ← {at‿new 𝕊 lines: (at↑lines)∾new∾at↓lines}
+Replace ← {from‿to‿new 𝕊 lines: (from↑lines)∾new∾(1+to)↓lines}
+# lines Block head‿id: the first and last line of that TX or PLAN block
+Block ← {lines 𝕊 head‿id:
+  k ← Kind¨lines
+  at ← ⊑/(k≡¨<head)∧(<id)≡¨{1⊑Fields 𝕩∾tab}¨lines
+  at‿(at+⊑/(at↓k)≡¨<"END"∾head)
+}
+
+# A TX that is saved again names its exchange legs: bakhlo gives an unkeyed one a
+# fixed key (book.ml entry_of). → ⟨"" or a refusal's code, the block⟩
+fixed ← "exchange-source"‿"exchange-destination"
+Keyed ← {
+  f ← 5 Pad¨Fields¨𝕩
+  kind‿measure‿key ← 0‿2‿4⊑¨¨<f
+  x‿y ← 1‿2⊏⊑((kind≡¨<"EXCHANGE")/f)∾<5⥊<""
+  effect ← kind≡¨<"EFFECT"
+  from‿to ← (<effect)∧¨((measure≡¨<x)∧0>Amount¨3⊑¨f)‿((measure≡¨<y)∧0<Amount¨3⊑¨f)
+  name ← (0=≠¨key)×from+2×to                    # 1, 2: the fixed key it gets
+  code ← ⊑(⟨(0<≠x)∧∨´1≠+´¨from‿to, ∨´((name>0)/name⊏(<"")∾fixed)∊key⟩/"exchange-ambiguous"‿"exchange-key-taken")∾<""
+  ⟨code, 𝕩∾¨name⊏⟨""⟩∾(tab∾⊢)¨fixed⟩
+}
 
 # PUT-ENTRY NEW <plan|->, then a TX block. EXCHANGE names its legs by their keys
 # here; the book names them by Measure. The memo is not escaped here.
@@ -103,14 +129,31 @@ PutEntry ← {s 𝕊 plan‿block:
     k ↩ ⊑∘Fields¨lines
     Admit (⊑/k∊later)‿(⟨head⟩∾body) Insert lines
   }
-  bad ← 1⊑¨failures
-  (∨´bad)◶⟨Write, {Refuse ⊑⊑bad/𝕩}⟩ failures
+  Write _unless failures
+}
+
+# CORRECT-ENTRY-DATE <TX ID> <date>: only the date changes, so Loci no longer
+# offered for new entries stay.
+CorrectDate ← {s 𝕊 id‿day:
+  Write ← {𝕊:
+    from‿to ← s.lines Block "TX"‿id
+    code‿block ← Keyed {Join day⌾(2⊸⊑) Fields 𝕩}⌾⊑ (from+↕1+to-from)⊏s.lines
+    (0<≠code)◶⟨{𝕊: Admit from‿to‿block Replace s.lines}, {𝕊: Refuse code}⟩ @
+  }
+  Write _unless ⟨
+    "invalid-entry-id"‿(0=≠id)
+    "invalid-date"‿(¬read.IsDate day)
+    "unknown-entry"‿(¬⊑(⋈id)∊s.book.tx.id)
+  ⟩
 }
 
 # One change: its command line and the lines of its block.
 Change ← {s 𝕊 c:
   command ← Fields ⊑c
   ⟨"PUT-ENTRY","NEW"⟩≡2↑command ? s PutEntry ⟨2⊑command, 1↓c⟩ ;
+  s 𝕊 c:
+  command ← 3 Pad Fields ⊑c
+  "CORRECT-ENTRY-DATE"≡⊑command ? s CorrectDate 1↓command ;
   Refuse "unsupported-change:"∾⊑Fields ⊑𝕩
 }
 

@@ -28,11 +28,11 @@ barrier‿full ← 85‿51                    # F_BARRIERFSYNC, F_FULLFSYNC
 Refuse ← {c←𝕩 ⋄ {ok⇐0, code⇐c}}
 
 # change.bqn's book, with where it came from
-Loaded ← {
+Placed ← {
   𝕨 𝕊 s: ¬s.ok ? s ;
   p‿b 𝕊 s: {ok⇐1 ⋄ lines⇐s.lines ⋄ book⇐s.book ⋄ path⇐p ⋄ bytes⇐b}
 }
-Load ⇐ {b ← •file.Bytes 𝕩 ⋄ 𝕩‿b Loaded change.Open b}
+Load ⇐ {b ← •file.Bytes 𝕩 ⋄ 𝕩‿b Placed change.Open b}
 
 # Write a new file and send its bytes to the drive, ordered before what follows
 # (not yet durable: a full sync of its directory must follow).
@@ -78,5 +78,5 @@ Save ⇐ {loaded 𝕊 changed:
   ⟩
   Unlink¨ ⋈¨C¨ temp‿(temp∾".prev")       # whatever is left; errors do not matter
   Close⍟(lock≥0) ⋈lock
-  (0<≠code)◶⟨{𝕊: path‿bytes Loaded changed}, {𝕊: Refuse code}⟩ @
+  (0<≠code)◶⟨{𝕊: path‿bytes Placed changed}, {𝕊: Refuse code}⟩ @
 }

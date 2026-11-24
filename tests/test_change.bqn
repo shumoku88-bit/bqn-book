@@ -23,7 +23,10 @@ SamplesIn ← {𝕊 dir:
 samples ← ∾SamplesIn¨"fixtures/records/"‿"fixtures/scheduled/"
 
 commands ← "PUT-ENTRY"‿"PUT-PLAN"‿"CANCEL-PLAN"‿"CORRECT-ENTRY-DATE"‿"CLASSIFY-MERCHANT"
-Written ← {∧´("PUT-ENTRY"‿"NEW"≡2↑Split)¨ ((First¨∊commands˙)⊸/) 3⊑𝕩}
+# a change's kind: PUT-ENTRY NEW, PUT-PLAN REPLACE, CANCEL-PLAN, …
+KindOf ← {"PUT-"≡4↑𝕩 ? (First 𝕩)∾" "∾1⊑Split 𝕩 ; First 𝕩}
+kindsWritten ← "PUT-ENTRY NEW"‿"CORRECT-ENTRY-DATE"
+Written ← {∧´(KindOf¨((First¨∊commands˙)⊸/) 3⊑𝕩)∊kindsWritten}
 Passes ← {𝕊 dir‿name‿book‿c‿answer:
   r ← (change.Open •file.Bytes dir∾book) change.Apply c
   After ← {𝕊: r.ok ? (change.Bytes r) ≡ •file.Bytes dir∾1⊑answer ; 0}
@@ -35,4 +38,11 @@ Passes ← {𝕊 dir‿name‿book‿c‿answer:
 run ← Written¨samples
 •Out "change samples: "∾(•Fmt +´run)∾" run, "∾(•Fmt +´¬run)∾" not written yet"
 Assert ∧´Passes¨run/samples
+# Saving a TX again names unkeyed exchange legs with bakhlo's fixed keys
+# (no bakhlo sample asks this; bakhlo household/book.ml entry_of).
+full ← •FLines "fixtures/common_format/ok-full.txt"
+bare ← {"	x-to"≡¯5↑𝕩 ? ¯5↓𝕩 ; 𝕩}¨ {"	x-from"≡¯7↑𝕩 ? ¯7↓𝕩 ; 𝕩}¨ full
+moved ← (change.Open •ToUTF8 ∾{𝕩∾@+10}¨bare) change.Apply ⟨"CORRECT-ENTRY-DATE	tx-0006	2027-01-09"⟩
+Assert moved.ok
+Assert ∧´ moved.lines ∊˜ ⟨"EFFECT	bank	jpy	-16300	exchange-source", "EFFECT	cash-usd	usd	10000	exchange-destination"⟩
 •Out "test_change: ok"
