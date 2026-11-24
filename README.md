@@ -12,6 +12,7 @@ bakhlo がしていることを、BQN でどれだけシンプルに書けるか
 | 中身（純粋） | `src/read.bqn` | 読む。受け入れた帳簿を節ごとの列で返すか、bakhlo と同じ理由のコードと行番号で拒否する |
 | | `src/balance.bqn` | 今の残高。わからない残高は `@`（0 ではない） |
 | | `src/print.bqn` | 書き出す。読んで書き出すと、バイト単位で元と同じになる |
+| | `src/pace.bqn` | 今日の目安（Daily Pace）、過去の日の目安、日ごとの動き。bakhlo の問いの言語（PACE・PAST・ACTIVITY）で答える |
 | | `src/change.bqn` | 変更。bakhlo の変更の言語（`PUT-ENTRY NEW` と TX ブロック）で受け取り、本文を編集して、まるごと読み直して受け入れる |
 | 保存 | `src/store.bqn` | bakhlo と同じ鍵（`book.txt.lock`）、読んだ後に変わっていたら拒否、`.prev`、ドライブまで書き出してから報告 |
 | 入口 | `bin/book` | 画面のための扉。タブ区切りの行で話す |
@@ -20,6 +21,7 @@ bakhlo がしていることを、BQN でどれだけシンプルに書けるか
 bin/book book.txt balances           # 科目 × 通貨ごとに：科目、通貨、金額（最小単位の整数）か ?
 bin/book book.txt preview < change   # 変更を下見：OK と足される行、または REFUSED <理由>
 bin/book book.txt save < change      # 保存：SAVED と足された行、または REFUSED <理由>
+bin/book book.txt ask < questions    # 問い（PACE・PAST・ACTIVITY と POOL の行）に、答えを付けて返す
 ```
 
 `change` は bakhlo の見本と同じ書き方（`tests/fixtures/records/README.md`）。今は `PUT-ENTRY NEW`・`REPLACE`（記帳を足す・訂正する）、`CORRECT-ENTRY-DATE`（日付だけの訂正）、`CLASSIFY-MERCHANT`（店の分類）、`PUT-PLAN NEW`・`REPLACE`（予定を作る・置き換える）、`CANCEL-PLAN`（予定の取り消し）。bakhlo の変更の種類はすべて。

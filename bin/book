@@ -6,11 +6,14 @@
 #   book <book.txt> preview    change lines on stdin (bakhlo's change language)
 #                              → OK and the lines the change adds, or REFUSED <code>
 #   book <book.txt> save       the same, then saves: SAVED and the lines, or REFUSED <code>
+#   book <book.txt> ask        questions on stdin (PACE, PAST, ACTIVITY with POOL lines,
+#                              as bakhlo's samples write them) → each with its answer
 #
 # Amounts are integers in the Measure's smallest unit. Exit status: 0 done, 1 refused.
 store ← •Import "../src/store.bqn"
 change ← •Import "../src/change.bqn"
 balance ← •Import "../src/balance.bqn"
+pace ← •Import "../src/pace.bqn"
 tab ← @+9
 Row ← {1↓∾(tab∾⊢)¨𝕩}
 Int ← {𝕩<0 ? "-"∾𝕊-𝕩 ; 𝕩<10 ? ⋈'0'+𝕩 ; (𝕊⌊𝕩÷10)∾'0'+10|𝕩}
@@ -32,5 +35,10 @@ Balances ← {𝕊:
 Changed ← {𝕊: c ← loaded change.Apply •FLines "/dev/stdin" ⋄ Refused⍟(¬c.ok) c}
 Preview ← {𝕊: Out ⟨"OK"⟩ ∾ (Changed @).lines Added loaded.lines}
 Save ← {𝕊: s ← loaded store.Save Changed @ ⋄ Refused⍟(¬s.ok) s ⋄ Out ⟨"SAVED"⟩ ∾ s.lines Added loaded.lines}
-Usage ← {𝕊: •Out "usage: book <book.txt> balances|preview|save" ⋄ •Exit 2}
-(⊑"balances"‿"preview"‿"save"⊐<command)◶⟨Balances, Preview, Save, Usage⟩ @
+Ask ← {𝕊:
+  lines ← •FLines "/dev/stdin"
+  heads ← ({(⊑𝕩⊐tab)↑𝕩}¨lines)∊"PACE"‿"PAST"‿"ACTIVITY"     # each question starts a group
+  Out ∾ (loaded.book pace.Ask ⊢)¨ (¯1++`heads)⊔lines
+}
+Usage ← {𝕊: •Out "usage: book <book.txt> balances|preview|save|ask" ⋄ •Exit 2}
+(⊑"balances"‿"preview"‿"save"‿"ask"⊐<command)◶⟨Balances, Preview, Save, Ask, Usage⟩ @

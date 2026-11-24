@@ -18,6 +18,8 @@ bin/book "$dir/book.txt" save < "$dir/change" > "$dir/out"
 head -1 "$dir/out" | grep -qx SAVED
 if bin/book "$dir/book.txt" save < "$dir/change" > "$dir/out"; then exit 1; fi
 grep -qx 'REFUSED	duplicate-entry' "$dir/out"
+printf 'PACE\tjpy\t2027-02-01\t2027-03-01\nPOOL\tbank\n' | bin/book tests/fixtures/scheduled/base.txt ask > "$dir/out"
+grep -qx 'DAILY	3285' "$dir/out"
 echo "bin/book: ok"
 
 if [ -d ../bakhlo/test ]; then
