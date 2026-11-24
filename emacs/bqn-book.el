@@ -71,6 +71,7 @@ it ends (bin/backup). For the household book, whose folder is its backup reposit
      ("g" . "読み直す"))
     (bqn-book-series-mode
      ("RET" . "このまとまりの予定")
+     ("a" . "ある日から先の金額を変える（値上げなど）")
      ("m" . "先の月を埋める（最後の予定を写す）")
      ("n" . "新しい予定")
      ("S" . "この列で並べ替える（見出しの列で）")
@@ -81,6 +82,7 @@ it ends (bin/backup). For the household book, whose folder is its backup reposit
      ("e" . "フォームで直す（期日・科目・金額）")
      ("E" . "変更の文で直す")
      ("c" . "取り消す（印を付けて残す）")
+     ("a" . "この予定から先の金額を変える（値上げなど）")
      ("m" . "先の月を埋める（最後の予定を写す）")
      ("n" . "新しい予定")
      ("g" . "読み直す"))
@@ -778,6 +780,30 @@ SOURCE's day is dated by the person, or skipped."
              (sit-for 1)
              (bqn-book--ask-missing month day after)))))
 
+(defun bqn-book-reprice ()
+  "Give a series' open plans a new amount from a day on, as bk plans amount does:
+in a series' plans, from the plan at point; in the series list, from a day asked
+for. Each account's sign stays; a plan already at that amount is left out, and a
+split plan is refused (change it on its own)."
+  (interactive)
+  (let* ((file bqn-book--file)
+         (rows (bqn-book--rows file "plans"))
+         (ids (if (derived-mode-p 'bqn-book-series-mode)
+                  (split-string (or (tabulated-list-get-id) (user-error "No series here")) "," t)
+                bqn-book--series-ids))
+         (from (if (derived-mode-p 'bqn-book-series-mode)
+                   (bqn-book--typed-day (read-string "From: " (bqn-book--day-today)))
+                 (nth 1 (assoc (bqn-book--plan-at-point "change amounts from it") rows))))
+         (chosen (seq-filter (lambda (id) (not (string< (nth 1 (assoc id rows)) from))) ids)))
+    (unless chosen (user-error "No open plan in this series from %s" from))
+    (let ((amount (read-string (format "New amount from %s: " from))))
+      (pcase (bqn-book--call file (list "reprice" amount) (concat (string-join chosen "\n") "\n"))
+        (`(0 . ,change) (bqn-book--save-change file change (current-buffer)))
+        (`(,_ "REFUSED\tunchanged") (message "Every plan already has that amount."))
+        (`(,_ ,(and line (pred (string-prefix-p "REFUSED\tsplit-plan:"))))
+         (message "%s is split between accounts: change it on its own (e)." (substring line 20)))
+        (`(,_ . ,lines) (bqn-book--refusal lines))))))
+
 (defun bqn-book-fill-months ()
   "Fill the coming months of the series at point, or of this series' plans."
   (interactive)
@@ -822,6 +848,7 @@ Change an amount to pay a different one; C-c C-c previews and saves."
 (define-keymap :keymap bqn-book-series-mode-map   ; again on reload: a new key takes effect
   :parent tabulated-list-mode-map
   "RET" #'bqn-book-series-plans
+  "a" #'bqn-book-reprice
   "m" #'bqn-book-fill-months
   "n" #'bqn-book-new-plan
   "g" #'revert-buffer
@@ -894,6 +921,7 @@ series' plans, its months, or nil.")
   "c" #'bqn-book-cancel-plan
   "e" #'bqn-book-edit-plan
   "E" #'bqn-book-edit-plan-as-change
+  "a" #'bqn-book-reprice
   "m" #'bqn-book-fill-months
   "n" #'bqn-book-new-plan
   "g" #'revert-buffer

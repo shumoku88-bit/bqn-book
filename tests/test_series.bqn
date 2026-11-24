@@ -24,7 +24,16 @@ slots ← ("SLOT"≡Head)¨⊸/ lines
 slotted ← {𝕩 ≡ ⊑ book series.Ask ⟨1↓∾(tab⊸∾)¨ 4↑Fields 𝕩⟩}¨ slots
 {•Out "wrong: "∾𝕩}¨ (¬slotted)/slots
 Assert ∧´slotted
-•Out "series samples: "∾•Fmt (1+≠right)+≠slotted
+# AMOUNT: the question through ENDINPUT, the answer through ENDAMOUNT
+amounts ← /("AMOUNT"≡Head)¨lines
+Answered ← {
+  input ← ⊑/(<"ENDINPUT")≡¨𝕩↓lines
+  done ← ⊑/(<"ENDAMOUNT")≡¨𝕩↓lines
+  (((𝕩+1+input)+↕done-input+1)⊏lines) ≡ book series.Ask (𝕩+↕input)⊏lines
+}
+priced ← Answered¨ amounts
+Assert ∧´priced
+•Out "series samples: "∾•Fmt (1+≠right)+(≠slotted)+≠priced
 
 # coverage: rent is watched monthly from January; its April has no plan
 rules ← config.Coverage "rent"∾tab∾"2027-01-27"∾tab∾"1"∾tab∾"bank"∾tab∾"rent"∾lf
@@ -44,4 +53,8 @@ Assert more ≡ ⟨"PUT-PLAN"∾tab∾"NEW", ∾⟨"PLAN", tab, "rent-a", tab, "
                "PUT-PLAN"∾tab∾"NEW", ∾⟨"PLAN", tab, "rent-b", tab, "2027-05-27", tab, "jpy"⟩, "CHANGE"∾tab∾"bank"∾tab∾"-80000", "CHANGE"∾tab∾"rent"∾tab∾"80000", "ENDPLAN"⟩
 Assert (s change.Apply more).ok
 Assert "source-not-open" ≡ (s series.More "rent-2027-01"‿⟨"2027-04-27"⟩‿⟨"x"⟩).code
+# the change that reprices: each plan in its place, signs kept
+priced2 ← s series.Repriced (book.plan.id⊐"phone-2027-01"‿"phone-2027-02")‿3300
+Assert priced2 ≡ ⟨"PUT-PLAN"∾tab∾"REPLACE", ∾⟨"PLAN", tab, "phone-2027-01", tab, "2027-01-25", tab, "jpy"⟩, "CHANGE"∾tab∾"bank"∾tab∾"-3300", "CHANGE"∾tab∾"phone"∾tab∾"3300", "ENDPLAN"⟩
+Assert (s change.Apply priced2).ok
 •Out "test_series: ok"

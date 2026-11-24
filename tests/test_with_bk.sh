@@ -63,4 +63,11 @@ printf '%s\n' 'ADD-LOCUS	cafe' 'SET-LOCUS-LABEL	cafe	  Café\\Bar ' 'SET-ROLE	ca
   'ADD-LOCUS	gym' 'SET-LOCUS-LABEL	bank	Main bank' | bin/book "$dir/ours.txt" save > /dev/null
 cmp -s "$book" "$dir/ours.txt" || { diff "$book" "$dir/ours.txt"; exit 1; }
 ! cmp -s "$book" tests/fixtures/scheduled/base.txt
+# 6. a new amount for a series from a day on: the same bytes as bk plans amount
+cp tests/fixtures/scheduled/series.txt "$book"
+cp tests/fixtures/scheduled/series.txt "$dir/ours.txt"
+printf '1\n2027-02-01\n3500\ny\n' | "$bk" --book "$book" plans amount > /dev/null
+printf 'phone-2027-02\n' | bin/book "$dir/ours.txt" reprice 3500 | bin/book "$dir/ours.txt" save > /dev/null
+cmp -s "$book" "$dir/ours.txt" || { diff "$book" "$dir/ours.txt"; exit 1; }
+! cmp -s "$book" tests/fixtures/scheduled/series.txt
 echo "with bk: ok"

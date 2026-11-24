@@ -312,4 +312,34 @@
       (test-bqn-book--answering '("asset") (bqn-book-set-role))
       (should (string-match-p "ROLE\tcafe\tEXPENSE\nROLE\twallet\tASSET\n" (test-bqn-book--text copy))))))
 
+(ert-deftest bqn-book-reprices-a-series ()
+  ;; from the plan at point on; earlier plans keep their amount
+  (let* ((copy (test-bqn-book--copy))
+         (home (save-window-excursion (bqn-book-home copy))))
+    (with-current-buffer home (setq bqn-book--today "2027-02-01"))
+    (let ((series (with-current-buffer home (save-window-excursion (bqn-book-home-series)))))
+      (with-current-buffer series
+        (goto-char (point-min))
+        (search-forward "Rent")
+        (let ((plans (save-window-excursion (bqn-book-series-plans))))
+          (with-current-buffer plans
+            (goto-char (point-min))
+            (search-forward "2027-03-27")
+            (test-bqn-book--answering '("82,000") (bqn-book-reprice))
+            (should (string-match-p "2027-03-27 +82,000" (buffer-substring-no-properties (point-min) (point-max))))
+            (should (string-match-p "2027-02-27 +80,000" (buffer-substring-no-properties (point-min) (point-max))))))))
+    (should (string-match-p "PLAN\trent-2027-03\t2027-03-27\tjpy\nCHANGE\tbank\t-82000\nCHANGE\trent\t82000\nENDPLAN"
+                            (test-bqn-book--text copy)))))
+
+(ert-deftest bqn-book-reprice-says-why-not ()
+  (dolist (case '(("REFUSED\tunchanged" . "Every plan already has that amount.")
+                  ("REFUSED\tsplit-plan:mixed" . "mixed is split between accounts: change it on its own (e).")))
+    (cl-letf (((symbol-function 'bqn-book--call) (lambda (&rest _) (list 1 (car case))))
+              ((symbol-function 'bqn-book--rows) (lambda (&rest _) '(("mixed" "2027-02-20"))))
+              ((symbol-function 'bqn-book--plan-at-point) (lambda (&rest _) "mixed"))
+              ((symbol-function 'read-string) (lambda (&rest _) "100")))
+      (with-temp-buffer
+        (setq bqn-book--series-ids '("mixed"))
+        (should (equal (bqn-book-reprice) (cdr case)))))))
+
 ;;; test_emacs.el ends here

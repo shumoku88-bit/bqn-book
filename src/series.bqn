@@ -20,14 +20,20 @@
 #                            or "NONE" outside the calendar
 #   s More source‿days‿ids → the change adding plans like the open plan source, on
 #                            those days with those IDs, or {ok⇐0, code}
-#   book Ask lines         → the answer lines (SERIES, SERIES-OF, SLOT), as the
-#                            samples say
+#   book Reprice plans‿q   → a batch amount change: the plans (indices) whose
+#                            amount becomes q, or {ok⇐0, code}: split-plan:<id>,
+#                            unchanged
+#   s Repriced plans‿q     → the change that does it (PUT-PLAN REPLACE each), or a code
+#   book Ask lines         → the answer lines (SERIES, SERIES-OF, SLOT, AMOUNT), as
+#                            the samples say
 
 read ← •Import "read.bqn"
 change ← •Import "change.bqn"
 tab ← @+9
 Join ← {1↓∾(tab∾⊢)¨𝕩}
 Refuse ← {why←𝕩 ⋄ {ok⇐0, code⇐why}}
+_unless ← {bad←1⊑¨𝕩 ⋄ (∨´bad)◶⟨𝔽, {Refuse ⊑⊑bad/𝕩}⟩ 𝕩}
+Int ← {𝕩<0 ? "-"∾𝕊-𝕩 ; 𝕩<10 ? ⋈'0'+𝕩 ; (𝕊⌊𝕩÷10)∾'0'+10|𝕩}
 Unpaid ← {b←𝕩 ⋄ ¬(↕≠b.plan.id)∊b.paid.plan∾b.cancelled.plan}   # open: neither paid nor cancelled
 
 Shapes ⇐ {
@@ -108,6 +114,31 @@ More ⇐ {s 𝕊 source‿days‿ids:
   ((p<≠b.plan.id) ∧ p⊑(Unpaid b)∾0)◶⟨{𝕊: Refuse "source-not-open"}, Copies⟩ @
 }
 
+# A price change: every chosen two-row plan gets the new amount, each account's
+# sign kept; a plan already at it is left out. A split plan is refused: no
+# allocation is guessed (household/schedule.ml change_amount).
+Reprice ⇐ {b 𝕊 plans‿q:
+  amounts ← plans ⊏ Simple b
+  split ← (@≡¨amounts)/plans
+  changed ← (q≢¨amounts)/plans
+  {𝕊: changed} _unless ⟨
+    ("split-plan:"∾⊑(split⊏b.plan.id)∾<"")‿(0<≠split)
+    "unchanged"‿(0=≠changed)
+  ⟩
+}
+# each changed plan's rows: its accounts, the new amount with their signs
+NewRows ← {b 𝕊 p‿q: c ← /b.change.plan=p ⋄ (c⊏b.change.locus) ⋈¨ q×× c⊏b.change.amount}
+Repriced ⇐ {s 𝕊 plans‿q:
+  b ← s.book
+  r ← b Reprice plans‿q
+  Block ← {p ← 𝕩 ⋄ ∾⟨
+    ⟨Join "PUT-PLAN"‿"REPLACE", Join "PLAN"‿(p⊑b.plan.id)‿(p⊑b.plan.day)‿(p⊑b.plan.measure)⟩
+    {Join "CHANGE"‿(⊑𝕩)‿(Int 1⊑𝕩)}¨ b NewRows p‿q
+    ⟨"ENDPLAN"⟩
+  ⟩}
+  (6=•Type r)◶⟨{𝕊: ∾Block¨r}, r˙⟩ @
+}
+
 # The samples' questions: SERIES lists every series as GROUP lines; SERIES-OF
 # names a plan's series.
 Ask ⇐ {b 𝕊 lines:
@@ -120,10 +151,18 @@ Ask ⇐ {b 𝕊 lines:
     r ← Slot (1⊑head)‿(•ParseFloat 2⊑head)‿(•ParseFloat 3⊑head)
     ⟨Join (4↑head) ∾ (2=≡r)⊑⟨⋈r, r⟩⟩
   }
-  (⊑"SERIES"‿"SERIES-OF"‿"SLOT"⊐<⊑head)◶⟨
+  Repriced ← {𝕊:
+    ids ← 1⊑¨ (("PLAN"≡⊑)¨⊸/ read.SplitFields¨ 1↓lines)
+    q ← •ParseFloat 1⊑head
+    r ← b Reprice (b.plan.id⊐ids)‿q
+    Plan ← {p←𝕩 ⋄ Join ⟨"PLAN", p⊑b.plan.id⟩ ∾ ∾{(⊑𝕩)‿(Int 1⊑𝕩)}¨ b NewRows p‿q}
+    (6=•Type r)◶⟨Plan¨, {⟨Join "REFUSED"‿𝕩.code⟩}⟩ r
+  }
+  (⊑"SERIES"‿"SERIES-OF"‿"SLOT"‿"AMOUNT"⊐<⊑head)◶⟨
     {𝕊: ⟨"SERIES"⟩ ∾ ({Join ⟨"GROUP"⟩∾𝕩⊏b.plan.id}¨ Series b) ∾ ⟨"ENDSERIES"⟩}
     Of
     Slotted
+    Repriced
     {𝕊: ⟨Join "REFUSED"‿"unknown-question"⟩}
   ⟩ @
 }
