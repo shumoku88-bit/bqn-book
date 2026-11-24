@@ -5,6 +5,7 @@ set -eu
 cd "$(dirname "$0")"
 python3 tests/names.py
 bqn tests/test_book.bqn
+bqn tests/test_amount.bqn
 bqn tests/test_change.bqn
 bqn tests/test_store.bqn
 bqn tests/test_view.bqn
@@ -34,7 +35,7 @@ if command -v emacs >/dev/null 2>&1; then
 fi
 
 if [ -d ../bakhlo/test ]; then
-  for d in common_format records scheduled; do
+  for d in common_format records scheduled amounts; do
     diff -r -x '*.ml' "../bakhlo/test/$d" "tests/fixtures/$d"
   done
   echo "samples: same as bakhlo"

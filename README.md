@@ -13,6 +13,7 @@ bakhlo がしていることを、BQN でどれだけシンプルに書けるか
 | | `src/balance.bqn` | 今の残高。わからない残高は `@`（0 ではない） |
 | | `src/print.bqn` | 書き出す。読んで書き出すと、バイト単位で元と同じになる |
 | | `src/pace.bqn` | 今日の目安（Daily Pace）、過去の日の目安、日ごとの動き。bakhlo の問いの言語（PACE・PAST・ACTIVITY）で答える |
+| | `src/amount.bqn` | 入力した金額を、通貨の桁で厳密に最小単位へ（`(500+300)/2`、全角、桁区切り）。表示はその逆 |
 | | `src/view.bqn` | 画面が並べる一覧：通貨、科目、記帳、予定 |
 | | `src/change.bqn` | 変更。bakhlo の変更の言語（`PUT-ENTRY NEW` と TX ブロック）で受け取り、本文を編集して、まるごと読み直して受け入れる |
 | 保存 | `src/store.bqn` | bakhlo と同じ鍵（`book.txt.lock`）、読んだ後に変わっていたら拒否、`.prev`、ドライブまで書き出してから報告 |
