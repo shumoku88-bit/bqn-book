@@ -23,6 +23,11 @@
 #                              an expression) → the change that records it, or REFUSED <code>
 #   book <book.txt> refund <id> <day>
 #                              the change that refunds the entry
+#   book <book.txt> pool       the accounts today's guide spends from (bk's daily-pace.tsv)
+#   book <book.txt> cycle <day>
+#                              the cycle holding day: name, start, end (bk's
+#                              boundary-presets.tsv; end excluded)
+# bk's settings are read from config/ next to the book, or else next to it.
 #
 # Text in a row is written as in book.txt (\t, \n, \\ escaped), and so is a memo in a change.
 #
@@ -32,6 +37,7 @@ change ← •Import "../src/change.bqn"
 balance ← •Import "../src/balance.bqn"
 pace ← •Import "../src/pace.bqn"
 form ← •Import "../src/form.bqn"
+config ← •Import "../src/config.bqn"
 view ← •Import "../src/view.bqn"
 tab ← @+9
 Row ← {1↓∾(tab∾⊢)¨𝕩}
@@ -71,12 +77,21 @@ Filled ← {𝕊:
   Answer loaded form.Fill id‿(("NEW"≡id)⊑target‿"-")‿newId‿(•FLines "/dev/stdin")
 }
 Refunded ← {𝕊: r ← loaded form.Refund id‿extra‿(NewId @) ⋄ Answer (6=•Type r)◶⟨⟨"PUT-ENTRY"∾tab∾"NEW"∾tab∾"-"⟩⊸∾, ⊢⟩ r}
+# bk's settings file, from config/ next to the book or else next to it; @ if neither
+Setting ← {
+  dir ← •file.Parent loaded.path
+  at ← (•file.Exists¨)⊸/ (dir∾"/config/"∾𝕩)‿(dir∾"/"∾𝕩)
+  (0<≠at)◶⟨@˙, {𝕊: •FChars ⊑at}⟩ @
+}
+Pooled ← {𝕊: r ← (⊑loaded.book.measure.id) config.Pool Setting "daily-pace.tsv" ⋄ (6=•Type r)◶⟨Out, Refused⟩ r}
+Cycled ← {𝕊: r ← (Setting "boundary-presets.tsv") config.Cycle id ⋄ r.ok◶⟨Refused, Out∘{⟨Row 𝕩.name‿𝕩.start‿𝕩.end⟩}⟩ r}
 Usage ← {𝕊: •Out "usage: book <book.txt> balances|preview|save|ask|measures|loci|entries|plans|entry <id>|plan <id>|open ENTRY|PLAN <id>|form NEW - | EDIT <id> | PAY <plan>|refund <id> <day>" ⋄ •Exit 2}
-commands ← "balances"‿"preview"‿"save"‿"ask"‿"measures"‿"loci"‿"entries"‿"plans"‿"entry"‿"plan"‿"open"‿"form"‿"refund"
+commands ← "balances"‿"preview"‿"save"‿"ask"‿"measures"‿"loci"‿"entries"‿"plans"‿"entry"‿"plan"‿"open"‿"form"‿"refund"‿"pool"‿"cycle"
 (⊑commands⊐<command)◶⟨
   Balances, Preview, Save, Ask
   {𝕊: Listed view.measures}, {𝕊: Listed view.loci}, {𝕊: Listed view.entries}, {𝕊: Listed view.plans}   # as values
   {𝕊: Edited "TX"}, {𝕊: Edited "PLAN"}
   Opened, Filled, Refunded
+  Pooled, Cycled
   Usage
 ⟩ @

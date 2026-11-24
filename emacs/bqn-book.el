@@ -361,8 +361,13 @@ C-c C-a inserts an account by its name, C-c C-k discards."
 ;;;; Home: today's guide, balances, open plans and recent entries
 
 (defcustom bqn-book-pace-pool nil
-  "The accounts today's guide counts as money to spend, like (\"bank\" \"wallet\")."
+  "The accounts today's guide counts as money to spend, like (\"bank\" \"wallet\").
+nil uses bk's own choice (daily-pace.tsv next to the book), so both agree."
   :type '(repeat string))
+
+(defun bqn-book--answer (file args)
+  "bin/book's lines for ARGS on FILE, or nil when it refuses."
+  (pcase (bqn-book--call file args) (`(0 . ,lines) lines)))
 
 (defvar-local bqn-book--today nil "The day the home counts from; nil for today.")
 (defvar-local bqn-book--pool nil "The guide's accounts in this home; nil for `bqn-book-pace-pool'.")
@@ -407,14 +412,16 @@ C-c C-a inserts an account by its name, C-c C-k discards."
   (let* ((inhibit-read-only t)
          (file bqn-book--file)
          (today (bqn-book--day-today))
-         (end (bqn-book--next-month today))
+         ;; the guide runs to the end of bk's cycle (boundary-presets.tsv), as bk's does
+         (cycle (split-string (or (car (bqn-book--answer file (list "cycle" today))) "") "\t" t))
+         (end (or (nth 2 cycle) (bqn-book--next-month today)))
          (scales (mapcar (lambda (r) (cons (car r) (string-to-number (cadr r))))
                          (bqn-book--rows file "measures")))
          (measure (caar scales))
          (Money (lambda (q m) (bqn-book--money q (or (cdr (assoc m scales)) 0))))
          (names (mapcar (lambda (r) (cons (car r) (bqn-book--shown (nth 1 r))))
                         (bqn-book--rows file "loci")))
-         (pool (or bqn-book--pool bqn-book-pace-pool))
+         (pool (or bqn-book--pool bqn-book-pace-pool (bqn-book--answer file '("pool"))))
          (point (point)))
     (erase-buffer)
     ;; the book by its folder and name: the whole path can be long
@@ -425,12 +432,13 @@ C-c C-a inserts an account by its name, C-c C-k discards."
     ;; today's guide
     (insert (propertize "Today's guide" 'face 'bold))
     (if (null pool)
-        (insert "\n  Set `bqn-book-pace-pool' to the accounts you spend from.\n\n")
+        (insert "\n  Choose the accounts you spend from: `bk pace pool', or `bqn-book-pace-pool'.\n\n")
       (let ((answer (cdr (bqn-book--call
                           file '("ask")
                           (concat (string-join (list "PACE" measure today end) "\t") "\n"
                                   (mapconcat (lambda (p) (concat "POOL\t" p "\n")) pool ""))))))
-        (insert (format "  %s, until %s\n" measure end))
+        (insert (format "  %s, until %s%s\n" measure end
+                        (if cycle (format " (cycle %s)" (car cycle)) " (no cycle in bk's settings)")))
         (dolist (line answer)
           (pcase (split-string line "\t")
             (`("BALANCE" ,locus ,q) (insert (format "  %-14s %12s  %s\n" "Spendable" (funcall Money q measure)

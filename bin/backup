@@ -1,0 +1,26 @@
+#!/bin/sh
+# Back up a household book after a save, as bakhlo's tools/household does when bk
+# ends: commit every change in the book's Git repository, then push what the
+# upstream lacks. A failed push keeps the commit, to go out next time (by this or
+# by bk). Nothing to do outside a Git repository.
+#   bin/backup <book.txt>
+set -u
+household=$(CDPATH= cd -- "$(dirname -- "$1")" && pwd -P)
+fail() { printf '%s\n' "$1" >&2; exit 1; }
+git -C "$household" rev-parse --git-dir >/dev/null 2>&1 || { echo 'Not a Git repository; nothing backed up.'; exit 0; }
+git -C "$household" add -A || fail 'Household staging failed; the book was not committed or pushed.'
+git -C "$household" diff --cached --quiet
+case $? in
+  0) ;;
+  1) git -C "$household" commit -q -m "記帳 $(date '+%Y-%m-%d %H:%M')（Emacs）" ||
+       fail 'Household commit failed; the change stays staged locally.'
+     echo 'Household changes committed.' ;;
+  *) fail 'Household diff failed; the book was not committed or pushed.' ;;
+esac
+git -C "$household" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1 ||
+  fail 'No upstream branch configured; local commits cannot be pushed.'
+pending=$(git -C "$household" log --oneline '@{upstream}..') || fail 'Failed to list pending commits; nothing was pushed.'
+if [ -n "$pending" ]; then
+  git -C "$household" push -q || fail 'Push failed; the commit is kept locally and will be pushed next time.'
+  echo 'Household backup pushed.'
+fi
