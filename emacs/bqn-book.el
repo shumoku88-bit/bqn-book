@@ -43,8 +43,9 @@ moko has decided so (bqn-book docs/PLAN.ja.md, stage 5)."
   :type '(choice (const :tag "Ask" nil) file))
 
 (defcustom bqn-book-backup nil
-  "After each save, commit and push the book's own Git repository, as bk does when
-it ends (bin/backup). For the household book, whose folder is its backup repository."
+  "After each save, commit and push the book's own Git repository, as bk
+does when it ends (bin/backup). For the household book, whose folder is its
+backup repository."
   :type 'boolean)
 
 ;;;; Keys: ? (C-c ? where typing) shows what each screen's keys do
@@ -171,6 +172,12 @@ FILE, each a list of fields."
 ;;;; Entries
 
 (defvar-local bqn-book--file nil "The book.txt this buffer shows or changes.")
+(defvar-local bqn-book--today nil "The day the home counts from; nil for today.")
+(defvar-local bqn-book--pool nil "The guide's accounts in this home; nil for `bqn-book-pace-pool'.")
+(defvar-local bqn-book--series-ids nil "The plans this series buffer shows.")
+(defvar-local bqn-book--series-every nil
+  "In a series list, (IDS . months) of each series a coverage rule watches; in a
+series' plans, its months, or nil.")
 
 (defvar bqn-book-entries-mode-map (make-sparse-keymap))
 (define-keymap :keymap bqn-book-entries-mode-map   ; again on reload: a new key takes effect
@@ -506,8 +513,6 @@ nil uses bk's own choice (daily-pace.tsv next to the book), so both agree."
   "bin/book's lines for ARGS on FILE, or nil when it refuses."
   (pcase (bqn-book--call file args) (`(0 . ,lines) lines)))
 
-(defvar-local bqn-book--today nil "The day the home counts from; nil for today.")
-(defvar-local bqn-book--pool nil "The guide's accounts in this home; nil for `bqn-book-pace-pool'.")
 
 (defun bqn-book--day-today ()
   (or bqn-book--today (format-time-string "%Y-%m-%d")))
@@ -575,12 +580,10 @@ Columns, not characters: a Japanese character takes two."
          ;; the guide runs to the end of bk's cycle (boundary-presets.tsv), as bk's does
          (cycle (split-string (or (car (bqn-book--answer file (list "cycle" today))) "") "\t" t))
          (end (or (nth 2 cycle) (bqn-book--next-month today)))
-         (scales (mapcar (lambda (r) (cons (car r) (string-to-number (cadr r))))
-                         (bqn-book--rows file "measures")))
+         (scales (bqn-book--scales file))
          (measure (caar scales))
-         (Money (lambda (q m) (bqn-book--money q (or (cdr (assoc m scales)) 0))))
-         (names (mapcar (lambda (r) (cons (car r) (bqn-book--shown (nth 1 r))))
-                        (bqn-book--rows file "loci")))
+         (Money (lambda (q m) (bqn-book--money-in scales q m)))
+         (names (bqn-book--names file))
          (pool (or bqn-book--pool bqn-book-pace-pool (bqn-book--answer file '("pool"))))
          (plans (bqn-book--rows file "plans"))
          (Plan (lambda (id) (let ((row (assoc id plans))) (if row (bqn-book--plan-name row names) id))))
@@ -837,9 +840,13 @@ Change an amount to pay a different one; C-c C-c previews and saves."
   "FILE's accounts: (id . name)."
   (mapcar (lambda (r) (cons (car r) (bqn-book--shown (nth 1 r)))) (bqn-book--rows file "loci")))
 
-(defun bqn-book--scale (file measure)
-  "How many decimals MEASURE has in FILE."
-  (string-to-number (or (cadr (assoc measure (bqn-book--rows file "measures"))) "0")))
+(defun bqn-book--scales (file)
+  "FILE's Measures: (id . decimals), in the book's order."
+  (mapcar (lambda (r) (cons (car r) (string-to-number (cadr r)))) (bqn-book--rows file "measures")))
+
+(defun bqn-book--money-in (scales quanta measure)
+  "QUANTA of MEASURE shown with its decimals from SCALES."
+  (bqn-book--money quanta (alist-get measure scales 0 nil #'equal)))
 
 (defun bqn-book--named (ids names)
   "IDS (joined by commas) by their NAMES, joined by +."
@@ -870,15 +877,12 @@ receiving, whatever the amounts. RET shows a series' plans."
   "bk's word for a coverage rule's MONTHS."
   (pcase months ("0" "undecided") ("1" "monthly") ("12" "yearly") (_ (format "every %sm" months))))
 
-(defvar-local bqn-book--series-every nil
-  "In a series list, (IDS . months) of each series a coverage rule watches; in a
-series' plans, its months, or nil.")
-
 (defun bqn-book--series ()
   "Fill the series buffer from bin/book."
   (let* ((file bqn-book--file)
          (today (bqn-book--day-today))
-         (names (bqn-book--names file)))
+         (names (bqn-book--names file))
+         (scales (bqn-book--scales file)))
     (setq bqn-book--series-every nil)
     (setq tabulated-list-entries
           (mapcar (lambda (row)
@@ -887,7 +891,7 @@ series' plans, its months, or nil.")
                         (push (cons ids (string-to-number every)) bqn-book--series-every))
                       (list ids
                             (vector (bqn-book--named from names) (bqn-book--named to names)
-                                    (if (equal q "split") "split" (bqn-book--money q (bqn-book--scale file m)))
+                                    (if (equal q "split") "split" (bqn-book--money-in scales q m))
                                     m next last count
                                     (string-join
                                      (delq nil (list (and (string< next today) (propertize "overdue" 'face 'warning))
@@ -911,7 +915,6 @@ series' plans, its months, or nil.")
     (message "? keys")
     buffer))
 
-(defvar-local bqn-book--series-ids nil "The plans this series buffer shows.")
 
 (defvar bqn-book-series-plans-mode-map (make-sparse-keymap))
 (define-keymap :keymap bqn-book-series-plans-mode-map   ; again on reload: a new key takes effect
@@ -940,13 +943,14 @@ series' plans, its months, or nil.")
   "Fill a series' plans buffer: those of its plans still open."
   (let* ((file bqn-book--file)
          (today (bqn-book--day-today))
+         (scales (bqn-book--scales file))
          (rows (bqn-book--rows file "plans")))
     (setq tabulated-list-entries
           (delq nil
                 (mapcar (lambda (id)
                           (pcase (assoc id rows)
                             (`(,id ,day ,m "open" ,_ ,q . ,_)
-                             (list id (vector day (bqn-book--money q (bqn-book--scale file m)) m
+                             (list id (vector day (bqn-book--money-in scales q m) m
                                               (if (string< day today) (propertize "overdue" 'face 'warning) ""))))))
                         bqn-book--series-ids)))))
 

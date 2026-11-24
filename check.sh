@@ -39,6 +39,10 @@ echo "bin/book: ok"
 
 if command -v emacs >/dev/null 2>&1; then
   emacs --batch -l tests/test_emacs.el -f ert-run-tests-batch-and-exit > "$dir/out" 2>&1 || { cat "$dir/out"; exit 1; }
+  # no byte-compiler warnings: they would hide a real one
+  cp emacs/bqn-book.el "$dir/"
+  emacs --batch --eval '(setq byte-compile-error-on-warn t)' -f batch-byte-compile "$dir/bqn-book.el" > "$dir/out" 2>&1 ||
+    { cat "$dir/out"; exit 1; }
   echo "emacs: ok"
 fi
 
