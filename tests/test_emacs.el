@@ -201,4 +201,39 @@
               (test-bqn-book--answering '() (bqn-book-form-submit)))
             (should (equal (mapcar #'car tabulated-list-entries) '("rent-2027-03")))))))))
 
+(ert-deftest bqn-book-plans-move-and-cancel ()
+  ;; a plan's due day moves (same ID, same rows); a cancelled plan is kept, marked
+  (let* ((copy (test-bqn-book--copy))
+         (home (save-window-excursion (bqn-book-home copy))))
+    (with-current-buffer home
+      (setq bqn-book--today "2027-02-01")
+      (revert-buffer)
+      (goto-char (point-min))
+      (search-forward "2027-02-27")
+      (test-bqn-book--answering '("2027-02-28") (bqn-book-move-plan))
+      (should (string-match-p "PLAN\trent-2027-02\t2027-02-28\tjpy\nCHANGE\tbank\t-80000\nCHANGE\trent\t80000\nENDPLAN"
+                              (test-bqn-book--text copy)))
+      (should (string-match-p "2027-02-28  Bank → Rent" (buffer-string)))
+      (goto-char (point-min))
+      (search-forward "2027-03-27")
+      (test-bqn-book--answering '() (bqn-book-cancel-plan))
+      (should (string-match-p "PLAN\trent-2027-03\t2027-03-27\tjpy\nCHANGE\tbank\t-80000\nCHANGE\trent\t80000\nCANCELLED\t2027-02-01\nENDPLAN"
+                              (test-bqn-book--text copy)))
+      (should-not (string-match-p "2027-03-27" (buffer-string))))))
+
+(ert-deftest bqn-book-home-corrects-a-recent-entry ()
+  (let* ((copy (test-bqn-book--copy))
+         (home (save-window-excursion (bqn-book-home copy))))
+    (with-current-buffer home
+      (goto-char (point-min))
+      (search-forward "last gym month")
+      (save-window-excursion (bqn-book-home-open))
+      (should (get-buffer "*book form tx-0003*")))))
+
+(ert-deftest bqn-book-days-typed-as-the-form-takes-them ()
+  (should (equal (bqn-book--typed-day "2027/2/8") "2027-02-08"))
+  (should (equal (bqn-book--typed-day "２０２７．０２．２８") "2027-02-28"))
+  (should (equal (bqn-book--typed-day "2027-02-28") "2027-02-28"))
+  (should (equal (bqn-book--typed-day "2027/02-28") "2027/02-28")))
+
 ;;; test_emacs.el ends here

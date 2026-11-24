@@ -199,10 +199,15 @@ C-c C-p previews it, C-c C-c saves it, C-c C-k discards it."
     (pop-to-buffer buffer)
     (message "C-c C-p preview, C-c C-c save, C-c C-k discard")))
 
+(defun bqn-book--entry-at-point ()
+  "The entry at point: a list's row, or a home line."
+  (or (get-text-property (point) 'bqn-book-entry)
+      (and (derived-mode-p 'bqn-book-entries-mode) (tabulated-list-get-id))))
+
 (defun bqn-book-edit-entry ()
   "Open the entry at point as a change that would keep it."
   (interactive)
-  (let ((id (tabulated-list-get-id)))
+  (let ((id (bqn-book--entry-at-point)))
     (unless id (user-error "No entry here"))
     (pcase (bqn-book--call bqn-book--file (list "entry" id))
       (`(0 . ,lines) (bqn-book--change lines id))
@@ -372,7 +377,7 @@ C-c C-a inserts an account by its name, C-c C-k discards."
 (defun bqn-book-correct-entry ()
   "Correct the entry at point in a form; an entry no form opens opens as a change."
   (interactive)
-  (let ((id (tabulated-list-get-id)))
+  (let ((id (bqn-book--entry-at-point)))
     (unless id (user-error "No entry here"))
     (pcase (bqn-book--call bqn-book--file (list "open" "ENTRY" id))
       (`(0 . ,rows)
@@ -449,8 +454,11 @@ Columns, not characters: a Japanese character takes two."
   :parent special-mode-map
   "+" #'bqn-book-new-entry
   "l" #'bqn-book-home-entries
-  "RET" #'bqn-book-pay-plan
+  "RET" #'bqn-book-home-open
   "p" #'bqn-book-pay-plan
+  "d" #'bqn-book-move-plan
+  "c" #'bqn-book-cancel-plan
+  "e" #'bqn-book-edit-plan
   "s" #'bqn-book-home-series
   "g" #'revert-buffer)
 
@@ -538,10 +546,12 @@ Columns, not characters: a Japanese character takes two."
     ;; recent entries
     (insert "\n" (propertize "Recent entries" 'face 'bold) "\n")
     (dolist (row (last (bqn-book--rows file "entries") 5))
-      (insert (format "  %s  %s\n" (nth 1 row)
-                      (if (string-empty-p (nth 2 row)) (propertize "(no memo)" 'face 'shadow)
-                        (bqn-book--shown (nth 2 row))))))
-    (insert "\n" (propertize "+ new entry   RET on a plan: pay it   s plans in series   l entries   g reread" 'face 'shadow) "\n")
+      (insert (propertize (format "  %s  %s\n" (nth 1 row)
+                                  (if (string-empty-p (nth 2 row)) (propertize "(no memo)" 'face 'shadow)
+                                    (bqn-book--shown (nth 2 row))))
+                          'bqn-book-entry (car row))))
+    (insert "\n" (propertize "RET on a plan: pay it, on an entry: correct it   d move a plan's day   c cancel a plan
++ new entry   s plans in series   l entries   g reread" 'face 'shadow) "\n")
     (goto-char (min point (point-max)))))
 
 ;;;###autoload
@@ -556,13 +566,66 @@ Columns, not characters: a Japanese character takes two."
     (pop-to-buffer-same-window buffer)
     buffer))
 
+(defun bqn-book--plan-at-point (what)
+  "The open plan at point: a home line, or a series' row; else say how to WHAT."
+  (or (get-text-property (point) 'bqn-book-plan)
+      (and (derived-mode-p 'bqn-book-series-plans-mode) (tabulated-list-get-id))
+      (user-error "Move to an open plan to %s" what)))
+
+(defun bqn-book-home-open ()
+  "On the home, RET: pay the plan at point, or correct the entry at point."
+  (interactive)
+  (if (get-text-property (point) 'bqn-book-entry)
+      (bqn-book-correct-entry)
+    (bqn-book-pay-plan)))
+
+(defun bqn-book--plan-change (plan)
+  "PLAN as the change that would keep it: PUT-PLAN REPLACE, its PLAN line second."
+  (pcase (bqn-book--call bqn-book--file (list "plan" plan))
+    (`(0 . ,lines) lines)
+    (`(,_ . ,lines) (user-error "%s" (string-join lines " ")))))
+
+(defun bqn-book--typed-day (text)
+  "TEXT as YYYY-MM-DD when typed as the Record form takes a day: 2027/2/8,
+2027.02.08, full-width digits; else TEXT, for the book to refuse."
+  (let ((s (japanese-hankaku (string-trim text) t)))
+    (if (string-match "\\`\\([0-9]\\{4\\}\\)\\([-/.]\\)\\([0-9]\\{1,2\\}\\)\\2\\([0-9]\\{1,2\\}\\)\\'" s)
+        (format "%s-%02d-%02d" (match-string 1 s)
+                (string-to-number (match-string 3 s)) (string-to-number (match-string 4 s)))
+      text)))
+
+(defun bqn-book-move-plan ()
+  "Move the open plan at point to another due day, after a preview.
+Its ID, accounts and amounts stay."
+  (interactive)
+  (let* ((plan (bqn-book--plan-at-point "move its day"))
+         (lines (bqn-book--plan-change plan))
+         (fields (split-string (nth 1 lines) "\t"))
+         (day (read-string (format "Due day (now %s): " (nth 2 fields)) (nth 2 fields))))
+    (setf (nth 2 fields) (bqn-book--typed-day day)
+          (nth 1 lines) (string-join fields "\t"))
+    (bqn-book--save-change bqn-book--file lines (current-buffer))))
+
+(defun bqn-book-cancel-plan ()
+  "Cancel the open plan at point, today, after a preview. It is kept, marked
+cancelled: nothing is erased."
+  (interactive)
+  (let ((plan (bqn-book--plan-at-point "cancel it")))
+    (bqn-book--save-change bqn-book--file
+                           (list (string-join (list "CANCEL-PLAN" plan (bqn-book--day-today)) "\t"))
+                           (current-buffer))))
+
+(defun bqn-book-edit-plan ()
+  "Open the open plan at point as a change: day, accounts and amounts, as text."
+  (interactive)
+  (let ((plan (bqn-book--plan-at-point "edit it")))
+    (bqn-book--change (bqn-book--plan-change plan) plan)))
+
 (defun bqn-book-pay-plan ()
   "Pay the open plan at point: a form with its accounts and amounts, dated today.
 Change an amount to pay a different one; C-c C-c previews and saves."
   (interactive)
-  (let ((plan (or (get-text-property (point) 'bqn-book-plan)
-                  (and (derived-mode-p 'bqn-book-series-plans-mode) (tabulated-list-get-id)))))
-    (unless plan (user-error "Move to an open plan to pay it"))
+  (let ((plan (bqn-book--plan-at-point "pay it")))
     (pcase (bqn-book--call bqn-book--file (list "open" "PLAN" plan))
       (`(0 . ,rows)
        (bqn-book--form-buffer bqn-book--file (current-buffer) "PAY" plan
@@ -650,6 +713,9 @@ receiving, whatever the amounts. RET shows a series' plans."
   :parent tabulated-list-mode-map
   "RET" #'bqn-book-pay-plan
   "p" #'bqn-book-pay-plan
+  "d" #'bqn-book-move-plan
+  "c" #'bqn-book-cancel-plan
+  "e" #'bqn-book-edit-plan
   "g" #'revert-buffer)
 
 (define-derived-mode bqn-book-series-plans-mode tabulated-list-mode "Book plans"
@@ -690,7 +756,7 @@ receiving, whatever the amounts. RET shows a series' plans."
         (bqn-book--series-plans)
         (tabulated-list-print))
       (pop-to-buffer-same-window buffer)
-      (message "RET pay the plan at point   g reread")
+      (message "RET pay   d move its day   c cancel   e edit as a change   g reread")
       buffer)))
 
 (provide 'bqn-book)
