@@ -384,3 +384,7 @@ References ← {𝕊 lines:
 }
 
 Read ⇐ Lines
+# Field syntax for other parts that take book text (change.bqn)
+SplitFields ⇐ tab⊸Split
+IsDate ⇐ Date
+IsInteger ⇐ Integer
