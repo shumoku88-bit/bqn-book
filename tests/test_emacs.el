@@ -100,4 +100,26 @@
       (should (string-match-p "Spendable +194,500" (buffer-string)))
       (should (string-match-p "2027-02-01  coffee" (buffer-string))))))
 
+(ert-deftest bqn-book-home-pays-a-plan ()
+  (let* ((copy (test-bqn-book--copy))
+         (home (save-window-excursion (bqn-book-home copy))))
+    (with-current-buffer home
+      (setq bqn-book--today "2027-02-01" bqn-book--pool '("bank"))
+      (revert-buffer)
+      (goto-char (point-min))
+      (search-forward "save-2027-02")
+      (save-window-excursion (bqn-book-pay-plan)))
+    (let ((form (get-buffer "*book form save-2027-02*")))
+      (with-current-buffer form
+        (should (equal (buffer-string)
+                       "DAY\t2027-02-01\nMEMO\t\nMEASURE\tjpy\nROW\t-\tbank\t-20000\nROW\t-\tsavings\t20000\n"))
+        (test-bqn-book--answering '() (bqn-book-form-submit)))
+      (should-not (buffer-live-p form)))
+    (let ((text (test-bqn-book--text copy)))
+      (should (string-match-p "PLAN\tsave-2027-02\t2027-02-10\tjpy\nCHANGE\tbank\t-20000\nCHANGE\tsavings\t20000\nPAID-BY\tentry-" text))
+      (should (string-match-p "EFFECT\tsavings\tjpy\t20000\nENDTX\nPLAN" text)))
+    (with-current-buffer home
+      (should-not (string-match-p "save-2027-02" (buffer-string)))
+      (should (string-match-p "Savings +jpy +20,000" (buffer-string))))))
+
 ;;; test_emacs.el ends here

@@ -14,7 +14,7 @@
 ;;     g     read the book again
 ;;   M-x bqn-book-home      the book at a glance: today's guide (the accounts in
 ;;                          `bqn-book-pace-pool'), balances, open plans, recent entries;
-;;                          + new entry, l entries, g reread
+;;                          + new entry, RET (or p) on a plan pays it, l entries, g reread
 ;;   M-x bqn-book-demo      the home of a copy of a synthetic sample book
 ;;
 ;; Text in a change is written as in book.txt: a memo's tab is \t, a backslash \\.
@@ -394,6 +394,8 @@ C-c C-a inserts an account by its name, C-c C-k discards."
   :parent special-mode-map
   "+" #'bqn-book-new-entry
   "l" #'bqn-book-home-entries
+  "RET" #'bqn-book-pay-plan
+  "p" #'bqn-book-pay-plan
   "g" #'revert-buffer)
 
 (define-derived-mode bqn-book-home-mode special-mode "Book home"
@@ -433,7 +435,8 @@ C-c C-a inserts an account by its name, C-c C-k discards."
           (pcase (split-string line "\t")
             (`("BALANCE" ,locus ,q) (insert (format "  %-14s %12s  %s\n" "Spendable" (funcall Money q measure)
                                                     (or (cdr (assoc locus names)) locus))))
-            (`("DEDUCTION" ,plan ,q) (insert (format "  %-14s %12s  %s\n" "Set aside" (funcall Money (concat "-" q) measure) plan)))
+            (`("DEDUCTION" ,plan ,q) (insert (propertize (format "  %-14s %12s  %s\n" "Set aside" (funcall Money (concat "-" q) measure) plan)
+                                                         'bqn-book-plan plan)))
             (`("AVAILABLE" ,q) (insert (format "  %-14s %12s\n" "Left" (funcall Money q measure))))
             (`("DAYS" ,n) (insert (format "  %-14s %12s\n" "Days" n)))
             (`("DAILY" ,q) (insert (propertize (format "  %-14s %12s\n" "Per day" (funcall Money q measure)) 'face 'success)))
@@ -452,15 +455,16 @@ C-c C-a inserts an account by its name, C-c C-k discards."
     (dolist (row (sort (seq-filter (lambda (r) (equal (nth 3 r) "open")) (bqn-book--rows file "plans"))
                        (lambda (a b) (string< (nth 1 a) (nth 1 b)))))
       (pcase-let ((`(,id ,day ,m ,_ ,_ ,q) row))
-        (insert (format "  %s  %-18s %-4s %12s%s\n" day id m (funcall Money q m)
-                        (if (string< day today) "  overdue" "")))))
+        (insert (propertize (format "  %s  %-18s %-4s %12s%s\n" day id m (funcall Money q m)
+                                    (if (string< day today) "  overdue" ""))
+                            'bqn-book-plan id))))
     ;; recent entries
     (insert "\n" (propertize "Recent entries" 'face 'bold) "\n")
     (dolist (row (last (bqn-book--rows file "entries") 5))
       (insert (format "  %s  %s\n" (nth 1 row)
                       (if (string-empty-p (nth 2 row)) (propertize "(no memo)" 'face 'shadow)
                         (bqn-book--shown (nth 2 row))))))
-    (insert "\n" (propertize "+ new entry   l entries   g reread" 'face 'shadow) "\n")
+    (insert "\n" (propertize "+ new entry   RET on a plan: pay it   l entries   g reread" 'face 'shadow) "\n")
     (goto-char (min point (point-max)))))
 
 ;;;###autoload
@@ -474,6 +478,18 @@ C-c C-a inserts an account by its name, C-c C-k discards."
       (bqn-book--draw-home))
     (pop-to-buffer-same-window buffer)
     buffer))
+
+(defun bqn-book-pay-plan ()
+  "Pay the open plan at point: a form with its accounts and amounts, dated today.
+Change an amount to pay a different one; C-c C-c previews and saves."
+  (interactive)
+  (let ((plan (get-text-property (point) 'bqn-book-plan)))
+    (unless plan (user-error "Move to an open plan to pay it"))
+    (pcase (bqn-book--call bqn-book--file (list "open" "PLAN" plan))
+      (`(0 . ,rows)
+       (bqn-book--form-buffer bqn-book--file (current-buffer) "PAY" plan
+                              (append (list (concat "DAY\t" (bqn-book--day-today)) "MEMO\t") rows)))
+      (`(,_ . ,lines) (bqn-book--refusal lines)))))
 
 (defun bqn-book-home-entries ()
   "The entries of this home's book."
