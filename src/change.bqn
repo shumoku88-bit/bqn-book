@@ -35,15 +35,22 @@ Session ← {
 }
 Open ⇐ {(ToLines •FromUTF8⎊⟨⟩ 𝕩) Session read.Read 𝕩}
 
-# Reading the new text decides. Its refusal names bakhlo's reason: a support line
-# refuses as support-admission, anything else as entry-admission:<code>.
+# Reading the new text decides: Why _admitted lines. Its refusal names bakhlo's
+# reason (household/book.ml): a support line refuses as support-admission; for a TX,
+# entry-admission:<code>; for a plan, an empty, zero or unbalanced movement is
+# invalid-plan-movement and anything else entry-admission.
 support ← "support-overlap"‿"duplicate-support"‿"history-unanchored"‿"empty-anchor"‿"also-redundant"‿"duplicate-also"‿"opening-missing-coordinate"
-Reason ← {⊑(<𝕩.code)∊support ? Refuse "support-admission" ; Refuse "entry-admission:"∾𝕩.code}
-Admit ← {r ← read.Read •ToUTF8 ∾{𝕩∾lf}¨𝕩 ⋄ 𝕩 Session Reason⍟(¬r.ok) r}
+Of3 ← {⊑(<𝕨.code)∊𝕩}
+ForEntry ← {𝕩 Of3 support ? Refuse "support-admission" ; Refuse "entry-admission:"∾𝕩.code}
+ForBook ← {𝕩 Of3 support ? Refuse "support-admission" ; Refuse "entry-admission"}
+ForPlan ← {𝕩 Of3 "no-effect"‿"zero-amount"‿"unbalanced" ? Refuse "invalid-plan-movement" ; ForBook 𝕩}
+_admitted ← {r ← read.Read •ToUTF8 ∾{𝕩∾lf}¨𝕩 ⋄ 𝕩 Session 𝔽⍟(¬r.ok) r}
+Admit ← ForEntry _admitted
 
 # Where things go in the text: a new TX at the end of the TX section, a PAID-BY
 # just before its plan's ENDPLAN.
 later ← "PLAN"‿"ZERO-ORIGIN"‿"OPENING"‿"HISTORY-FROM"‿"ANCHOR"‿"ITEM"‿"CLOSE"‿"END"
+EndOf ← {⊑/(Kind¨𝕩)∊𝕨}                        # sections EndOf lines: where they begin
 Insert ← {at‿new 𝕊 lines: (at↑lines)∾new∾at↓lines}
 Swap ← {from‿to‿new 𝕊 lines: (from↑lines)∾new∾(1+to)↓lines}
 # lines Span head‿id: the first and last line of that TX or PLAN block
@@ -113,7 +120,7 @@ PutEntry ← {s 𝕊 replace‿plan‿block:
     }
     tx ← ⟨head⟩∾{"EXCHANGE"≡Kind 𝕩 ? Join "EXCHANGE"‿mx‿my ; 𝕩}¨1↓block
     Paid ← {(1⊑𝕩 Span "PLAN"‿plan)‿⟨Join "PAID-BY"‿id⟩ Insert 𝕩}
-    Add ← {𝕊: lines ← paying◶⟨⊢,Paid⟩ s.lines ⋄ Admit (⊑/(Kind¨lines)∊later)‿tx Insert lines}
+    Add ← {𝕊: lines ← paying◶⟨⊢,Paid⟩ s.lines ⋄ Admit (later EndOf lines)‿tx Insert lines}
     Correct ← {𝕊: Admit ((s.lines Span "TX"‿id)∾<tx) Swap s.lines}
     replace◶⟨Add, Correct⟩ @
   }
@@ -170,6 +177,44 @@ Classify ← {s 𝕊 id‿how‿name:
   ⟩
 }
 
+# PUT-PLAN NEW|REPLACE, then a PLAN block: an open plan, added at the end of the
+# PLAN section or put in the place of the open plan with its ID.
+PutPlan ← {s 𝕊 replace‿block:
+  b ← s.book
+  f ← Fields¨block
+  id‿day‿measure ← 1↓4 Pad ⊑f
+  p ← ⊑b.plan.id⊐⋈id
+  known ← p<≠b.plan.id
+  Write ← {𝕊:
+    Add ← {𝕊: ((1↓later) EndOf s.lines)‿block Insert s.lines}
+    Correct ← {𝕊: ((s.lines Span "PLAN"‿id)∾<block) Swap s.lines}
+    ForPlan _admitted replace◶⟨Add, Correct⟩ @
+  }
+  Write _unless ⟨
+    "plan-terminal-not-input"‿(∨´(⊑¨f)∊"PAID-BY"‿"CANCELLED")
+    replace⊑⟨"duplicate-plan"‿known, "unknown-plan"‿(¬known)⟩
+    "plan-already-paid"‿(replace∧⊑(⋈p)∊b.paid.plan)
+    "plan-cancelled"‿(replace∧⊑(⋈p)∊b.cancelled.plan)
+    "locus-unapproved"‿(∨´¬(1⊑¨((⊑¨f)≡¨<"CHANGE")/f)∊(¬b.locus.hidden)/b.locus.id)
+    "invalid-plan-id"‿(0=≠id)
+    "invalid-date"‿(¬read.IsDate day)
+    "measure-scale-not-supplied"‿(¬⊑(⋈measure)∊b.measure.id)
+  ⟩
+}
+
+# CANCEL-PLAN <plan ID> <date>: an open plan ends, CANCELLED on that day.
+CancelPlan ← {s 𝕊 id‿day:
+  b ← s.book
+  p ← ⊑b.plan.id⊐⋈id
+  Write ← {𝕊: ForBook _admitted (1⊑s.lines Span "PLAN"‿id)‿⟨Join "CANCELLED"‿day⟩ Insert s.lines}
+  Write _unless ⟨
+    "unknown-plan"‿(p=≠b.plan.id)
+    "plan-already-paid"‿(⊑(⋈p)∊b.paid.plan)
+    "plan-cancelled"‿(⊑(⋈p)∊b.cancelled.plan)
+    "invalid-date"‿(¬read.IsDate day)
+  ⟩
+}
+
 # One change: its command line and the lines of its block.
 Change ← {s 𝕊 c:
   command ← Fields ⊑c
@@ -180,6 +225,12 @@ Change ← {s 𝕊 c:
   s 𝕊 c:
   command ← 4 Pad Fields ⊑c
   "CLASSIFY-MERCHANT"≡⊑command ? s Classify 1↓command ;
+  s 𝕊 c:
+  command ← 3 Pad Fields ⊑c
+  ("PUT-PLAN"≡⊑command) ∧ ⊑(⋈1⊑command)∊"NEW"‿"REPLACE" ? s PutPlan ⟨"REPLACE"≡1⊑command, 1↓c⟩ ;
+  s 𝕊 c:
+  command ← 3 Pad Fields ⊑c
+  "CANCEL-PLAN"≡⊑command ? s CancelPlan 1↓command ;
   Refuse "unsupported-change:"∾⊑Fields ⊑𝕩
 }
 
