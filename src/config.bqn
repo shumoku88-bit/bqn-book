@@ -4,6 +4,8 @@
 # test/periods). Pure: the caller gives each file's text, or @ when it is missing.
 #
 #   measure Pool text      daily-pace.tsv → the accounts, or {ok⇐0, code}
+#   View text              balance-view.tsv → the balances to show, locus‿measure
+#                          each, in order, or {ok⇐0, code}: not-configured, malformed
 #   text Cycle day         boundary-presets.tsv → {ok⇐1, name, start, end} for the
 #                          window holding day (end excluded), or {ok⇐0, code}:
 #                          not-configured, malformed, no-cycle:<day>, ambiguous:<day>
@@ -29,6 +31,18 @@ Pool ⇐ {measure 𝕊 text:
     "other-measure"‿(∨´{measure≢1⊑𝕩∾<""}¨rows)
     "duplicate"‿(¬∧´∊⊑¨rows)
     "empty"‿(0=≠rows)
+  ⟩
+}
+
+# balance-view.tsv: bk writes it, one account and Measure per line, nothing else;
+# any other line refuses the whole file (bakhlo cli/balance_view_data.ml)
+View ⇐ {
+  # one final newline ends the last line; an empty file shows nothing
+  Coordinates ← {body ← (-⊑lf∊¯1↑𝕩)↓𝕩 ⋄ (0<≠body)◶⟨⟨⟩˙, {𝕊: tab⊸Split¨ lf Split body}⟩ @}
+  rows ← (@≢𝕩)◶⟨⟨⟩˙, Coordinates⟩ 𝕩
+  {𝕊: rows} _unless ⟨
+    "not-configured"‿(@≡𝕩)
+    "malformed"‿(∨´{(2≠≠𝕩) ∨ ¬∧´Token¨𝕩}¨rows)
   ⟩
 }
 

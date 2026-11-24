@@ -28,4 +28,9 @@ Assert pool ≡ "wallet"‿"bank"
 Assert "other-measure" ≡ ("jpy" config.Pool "cash"∾tab∾"usd"∾lf).code
 Assert "malformed" ≡ ("jpy" config.Pool "cash"∾lf).code
 Assert "not-configured" ≡ ("jpy" config.Pool @).code
+Assert ⟨"cash"‿"jpy", "bank"‿"jpy"⟩ ≡ config.View "cash"∾tab∾"jpy"∾lf∾"bank"∾tab∾"jpy"∾lf
+Assert ⟨⟩ ≡ config.View ""
+Assert "malformed" ≡ (config.View "# cash"∾lf).code
+Assert "malformed" ≡ (config.View "cash"∾tab∾"jpy"∾lf∾lf).code
+Assert "not-configured" ≡ (config.View @).code
 •Out "test_config: ok"

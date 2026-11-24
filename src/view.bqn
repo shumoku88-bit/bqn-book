@@ -29,7 +29,8 @@ Entries ⇐ {
 }
 
 # id, due day, Measure, open | paid | cancelled, the paying TX or the cancelling day,
-# and how much it moves (the sum of its positive changes, in smallest units)
+# how much it moves (the sum of its positive changes, in smallest units), and the
+# accounts it moves from and to (joined by +): what a screen names it by
 Plans ⇐ {
   b ← 𝕩
   n ← ≠b.plan.id
@@ -39,5 +40,7 @@ Plans ⇐ {
   detail ← (b.paid.tx∾<"")⊏˜paid
   detail ↩ ((b.cancelled.day∾<"")⊏˜cancelled) {0=≠𝕩 ? 𝕨 ; 𝕩}¨ detail
   moves ← +´¨(b.change.plan∾n)⊔0⌈b.change.amount
-  Rows ⟨b.plan.id, b.plan.day, b.plan.measure, state⊏"open"‿"paid"‿"cancelled", detail, print.Int¨moves⟩
+  # per plan, its accounts whose change has the sign: each once, in book order
+  Sides ← {k←𝕩 ⋄ {1↓∾('+'∾⊢)¨⍷𝕩}¨ ¯1↓ ((k/b.change.plan)∾n) ⊔ (k/b.change.locus)∾<""}
+  Rows ⟨b.plan.id, b.plan.day, b.plan.measure, state⊏"open"‿"paid"‿"cancelled", detail, print.Int¨moves, Sides b.change.amount<0, Sides b.change.amount>0⟩
 }

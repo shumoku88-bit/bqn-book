@@ -23,6 +23,8 @@
 
 (require 'tabulated-list)
 (require 'subr-x)
+(require 'cl-lib)
+(require 'seq)
 
 (defgroup bqn-book nil
   "bakhlo's book.txt through bqn-book."
@@ -238,16 +240,21 @@ C-c C-p previews it, C-c C-c saves it, C-c C-k discards it."
 ;;;; The Record form
 
 (defun bqn-book--accounts (file)
-  "The accounts offered for new entries in FILE: (\"name (id)\" . id)."
+  "The accounts offered for new entries in FILE: (\"id  name\" . id).
+The ID comes first, so typing its start and TAB finds it (co TAB → coffee)."
   (delq nil (mapcar (lambda (row)
                       (pcase-let ((`(,id ,label ,_help ,hidden ,_role) row))
                         (unless (equal hidden "HIDDEN")
-                          (cons (format "%s (%s)" (bqn-book--shown label) id) id))))
+                          (let ((name (bqn-book--shown label)))
+                            (cons (if (member name (list "" id)) id (format "%s  %s" id name)) id)))))
                     (bqn-book--rows file "loci"))))
 
 (defun bqn-book--read-account (file prompt)
-  "Ask for an account of FILE by its name; nil when left empty."
+  "Ask for an account of FILE by its ID or name; nil when left empty.
+TAB completes from the start of the ID, or from any part of the name."
   (let* ((accounts (bqn-book--accounts file))
+         (completion-styles '(basic substring))
+         (completion-ignore-case t)
          (choice (completing-read prompt accounts nil t)))
     (unless (string-empty-p choice) (cdr (assoc choice accounts)))))
 
@@ -404,6 +411,20 @@ nil uses bk's own choice (daily-pace.tsv next to the book), so both agree."
          (m (string-to-number (substring day 5 7))))
     (if (= m 12) (format "%04d-01-01" (1+ y)) (format "%04d-%02d-01" y (1+ m)))))
 
+(defun bqn-book--cell (text width &optional right)
+  "TEXT in WIDTH columns, cut with … if longer; RIGHT aligns it right.
+Columns, not characters: a Japanese character takes two."
+  (let* ((cut (truncate-string-to-width text width nil nil "…"))
+         (pad (make-string (max 0 (- width (string-width cut))) ?\s)))
+    (if right (concat pad cut) (concat cut pad))))
+
+(defun bqn-book--plan-name (row names)
+  "What plan ROW (a `plans' row) moves: its accounts by NAMES, from → to."
+  (pcase-let ((`(,_id ,_day ,_m ,_state ,_detail ,_q ,from ,to) row))
+    (cl-flet ((named (ids) (mapconcat (lambda (l) (or (cdr (assoc l names)) l))
+                                      (split-string (or ids "") "+" t) "+")))
+      (concat (named from) " → " (named to)))))
+
 (defun bqn-book--money (quanta scale)
   "QUANTA (smallest units, as text) shown with SCALE decimals and thousands commas."
   (let* ((n (string-to-number quanta))
@@ -445,6 +466,8 @@ nil uses bk's own choice (daily-pace.tsv next to the book), so both agree."
          (names (mapcar (lambda (r) (cons (car r) (bqn-book--shown (nth 1 r))))
                         (bqn-book--rows file "loci")))
          (pool (or bqn-book--pool bqn-book-pace-pool (bqn-book--answer file '("pool"))))
+         (plans (bqn-book--rows file "plans"))
+         (Plan (lambda (id) (let ((row (assoc id plans))) (if row (bqn-book--plan-name row names) id))))
          (point (point)))
     (erase-buffer)
     ;; the book by its folder and name: the whole path can be long
@@ -466,7 +489,8 @@ nil uses bk's own choice (daily-pace.tsv next to the book), so both agree."
           (pcase (split-string line "\t")
             (`("BALANCE" ,locus ,q) (insert (format "  %-14s %12s  %s\n" "Spendable" (funcall Money q measure)
                                                     (or (cdr (assoc locus names)) locus))))
-            (`("DEDUCTION" ,plan ,q) (insert (propertize (format "  %-14s %12s  %s\n" "Set aside" (funcall Money (concat "-" q) measure) plan)
+            (`("DEDUCTION" ,plan ,q) (insert (propertize (format "  %-14s %12s  %s\n" "Set aside" (funcall Money (concat "-" q) measure)
+                                                                 (funcall Plan plan))
                                                          'bqn-book-plan plan)))
             (`("AVAILABLE" ,q) (insert (format "  %-14s %12s\n" "Left" (funcall Money q measure))))
             (`("DAYS" ,n) (insert (format "  %-14s %12s\n" "Days" n)))
@@ -475,19 +499,34 @@ nil uses bk's own choice (daily-pace.tsv next to the book), so both agree."
         (insert "\n")))
     ;; balances
     (insert (propertize "Balances" 'face 'bold) "\n")
-    (let ((unknown 0))
-      (dolist (row (bqn-book--rows file "balances"))
+    ;; the balances bk shows (balance-view.tsv), in its order; without it, every known one
+    (let* ((all (bqn-book--rows file "balances"))
+           (view (bqn-book--answer file '("view")))
+           (rows (if view
+                     (mapcar (lambda (line)
+                               (pcase-let ((`(,locus ,m) (split-string line "\t")))
+                                 (or (seq-find (lambda (r) (and (equal (car r) locus) (equal (nth 1 r) m))) all)
+                                     (list locus m "?"))))
+                             view)
+                   (seq-remove (lambda (r) (equal (nth 2 r) "?")) all)))
+           (width (min 24 (apply #'max 8 (mapcar (lambda (r) (string-width (or (cdr (assoc (car r) names)) (car r))))
+                                                 rows)))))
+      (dolist (row rows)
         (pcase-let ((`(,locus ,m ,q) row))
-          (if (equal q "?") (setq unknown (1+ unknown))
-            (insert (format "  %-14s %-4s %12s\n" (or (cdr (assoc locus names)) locus) m (funcall Money q m))))))
-      (when (> unknown 0) (insert (format "  (%d with no known balance)\n" unknown))))
+          (insert "  " (bqn-book--cell (or (cdr (assoc locus names)) locus) width)
+                  "  " (bqn-book--cell m 4)
+                  " " (bqn-book--cell (if (equal q "?") "?" (funcall Money q m)) 12 t) "\n")))
+      (unless view
+        (insert (propertize "  (every account with a known balance: choose them in bk's Balances, c)\n" 'face 'shadow))))
     ;; open plans
     (insert "\n" (propertize "Open plans" 'face 'bold) "\n")
-    (dolist (row (sort (seq-filter (lambda (r) (equal (nth 3 r) "open")) (bqn-book--rows file "plans"))
+    (dolist (row (sort (seq-filter (lambda (r) (equal (nth 3 r) "open")) plans)
                        (lambda (a b) (string< (nth 1 a) (nth 1 b)))))
       (pcase-let ((`(,id ,day ,m ,_ ,_ ,q) row))
-        (insert (propertize (format "  %s  %-18s %-4s %12s%s\n" day id m (funcall Money q m)
-                                    (if (string< day today) "  overdue" ""))
+        (insert (propertize (concat "  " day "  " (bqn-book--cell (bqn-book--plan-name row names) 30)
+                                    "  " (bqn-book--cell m 4) " " (bqn-book--cell (funcall Money q m) 12 t)
+                                    (if (string< day today) (propertize "  overdue" 'face 'warning) "")
+                                    "\n")
                             'bqn-book-plan id))))
     ;; recent entries
     (insert "\n" (propertize "Recent entries" 'face 'bold) "\n")

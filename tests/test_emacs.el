@@ -36,7 +36,7 @@
   (let* ((copy (test-bqn-book--copy)) (list (test-bqn-book--list copy)))
     (with-current-buffer list
       (test-bqn-book--answering
-       '("2027/2/3" "lunch" "Bank (bank)" "-(500+300)/2" "Wallet (wallet)" "+400" "")
+       '("2027/2/3" "lunch" "bank  Bank" "-(500+300)/2" "wallet  Wallet" "+400" "")
        (save-window-excursion (bqn-book-new-entry))))
     (should (string-match-p "\tDESC\tlunch\nEFFECT\tbank\tjpy\t-400\nEFFECT\twallet\tjpy\t400\nENDTX"
                             (test-bqn-book--text copy)))
@@ -63,7 +63,7 @@
          (before (test-bqn-book--text copy))
          (list (test-bqn-book--list copy)))
     (with-current-buffer list
-      (test-bqn-book--answering '("2027-02-03" "" "Bank (bank)" "-5" "Wallet (wallet)" "4" "")
+      (test-bqn-book--answering '("2027-02-03" "" "bank  Bank" "-5" "wallet  Wallet" "4" "")
                                 (save-window-excursion (bqn-book-new-entry))))
     (let ((form (get-buffer "*book form new*")))
       (should (buffer-live-p form))
@@ -93,9 +93,9 @@
       (setq bqn-book--today "2027-02-01" bqn-book--pool '("bank"))
       (revert-buffer)
       (should (string-match-p "Per day +3,285" (buffer-string)))
-      (should (string-match-p "2027-01-25  phone-2027-01 +jpy +3,000  overdue" (buffer-string)))
-      (should (string-match-p "(4 with no known balance)" (buffer-string)))
-      (test-bqn-book--answering '("2027-02-01" "coffee" "Bank (bank)" "-500" "Wallet (wallet)" "+500" "")
+      (should (string-match-p "2027-01-25  Bank → Phone +jpy +3,000  overdue" (buffer-string)))
+      (should (string-match-p "every account with a known balance" (buffer-string)))
+      (test-bqn-book--answering '("2027-02-01" "coffee" "bank  Bank" "-500" "wallet  Wallet" "+500" "")
                                 (save-window-excursion (bqn-book-new-entry)))
       (should (string-match-p "Spendable +194,500" (buffer-string)))
       (should (string-match-p "2027-02-01  coffee" (buffer-string))))))
@@ -107,7 +107,7 @@
       (setq bqn-book--today "2027-02-01" bqn-book--pool '("bank"))
       (revert-buffer)
       (goto-char (point-min))
-      (search-forward "save-2027-02")
+      (search-forward "Bank → Savings")
       (save-window-excursion (bqn-book-pay-plan)))
     (let ((form (get-buffer "*book form save-2027-02*")))
       (with-current-buffer form
@@ -119,7 +119,7 @@
       (should (string-match-p "PLAN\tsave-2027-02\t2027-02-10\tjpy\nCHANGE\tbank\t-20000\nCHANGE\tsavings\t20000\nPAID-BY\tentry-" text))
       (should (string-match-p "EFFECT\tsavings\tjpy\t20000\nENDTX\nPLAN" text)))
     (with-current-buffer home
-      (should-not (string-match-p "save-2027-02" (buffer-string)))
+      (should-not (string-match-p "Bank → Savings" (buffer-string)))
       (should (string-match-p "Savings +jpy +20,000" (buffer-string))))))
 
 (ert-deftest bqn-book-backs-up-after-a-save ()
@@ -137,7 +137,7 @@
       (call-process "git" nil nil nil "remote" "add" "origin" remote)
       (call-process "git" nil nil nil "push" "-qu" "origin" "HEAD"))
     (with-current-buffer (test-bqn-book--list copy)
-      (test-bqn-book--answering '("2027-02-03" "tea" "Bank (bank)" "-300" "Wallet (wallet)" "+300" "")
+      (test-bqn-book--answering '("2027-02-03" "tea" "bank  Bank" "-300" "wallet  Wallet" "+300" "")
                                 (save-window-excursion (bqn-book-new-entry))))
     (let ((process (get-process "bqn-book-backup")))
       (while (and process (process-live-p process)) (accept-process-output process 0.1)))
@@ -145,5 +145,36 @@
       (should (string-match-p "記帳 .*（Emacs）"
                               (with-output-to-string
                                 (call-process "git" nil standard-output nil "log" "--oneline" "-1")))))))
+
+(ert-deftest bqn-book-cells-count-columns ()
+  ;; a Japanese character takes two columns, so names line up
+  (should (equal (bqn-book--cell "現金" 6) "現金  "))
+  (should (equal (bqn-book--cell "cash" 6) "cash  "))
+  (should (equal (bqn-book--cell "1,000" 7 t) "  1,000"))
+  (should (= (string-width (bqn-book--cell "とても長い科目の名前" 8)) 8)))
+
+(ert-deftest bqn-book-accounts-complete-by-id-or-name ()
+  (let ((completion-styles '(basic substring)))
+    (should (equal (try-completion "sa" '("salary  Salary" "savings  Savings" "bank  Bank")) "sa"))
+    (should (equal (try-completion "ban" '("salary  Salary" "bank  Bank")) "bank  Bank"))
+    (should (equal (completion-all-completions "ーヒ" '("coffee  コーヒー" "bank  Bank") nil 2)
+                   '("coffee  コーヒー" . 0)))))
+
+(ert-deftest bqn-book-home-names-plans-by-accounts ()
+  (with-current-buffer (bqn-book-home (test-bqn-book--copy))
+    (setq bqn-book--today "2027-01-20" bqn-book--pool '("bank"))
+    (revert-buffer)
+    (should (string-match-p "Bank → Phone +jpy +3,000" (buffer-string)))
+    (should (string-match-p "Set aside +-3,000  Bank → Phone" (buffer-string)))
+    (should-not (string-match-p "phone-2027-01" (buffer-string)))))
+
+(ert-deftest bqn-book-home-shows-bk-balance-view ()
+  ;; bk's chosen balances, in its order; one with no known balance shows ?
+  (let ((copy (test-bqn-book--copy)))
+    (make-directory (expand-file-name "config" (file-name-directory copy)))
+    (with-temp-file (expand-file-name "config/balance-view.tsv" (file-name-directory copy))
+      (insert "wallet\tjpy\nbank\tjpy\nnowhere\tjpy\n"))
+    (with-current-buffer (bqn-book-home copy)
+      (should (string-match-p "Balances\n  Wallet +jpy +20,000\n  Bank +jpy +195,000\n  nowhere +jpy +\\?\n\n" (buffer-string))))))
 
 ;;; test_emacs.el ends here

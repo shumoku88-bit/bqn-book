@@ -26,7 +26,7 @@ grep -qx 'REFUSED	duplicate-entry' "$dir/out"
 printf 'PACE\tjpy\t2027-02-01\t2027-03-01\nPOOL\tbank\n' | bin/book tests/fixtures/scheduled/base.txt ask > "$dir/out"
 grep -qx 'DAILY	3285' "$dir/out"
 bin/book tests/fixtures/common_format/ok-full.txt plans > "$dir/out"
-grep -qx 'plan-0002	2027-02-06	jpy	open		3000' "$dir/out"
+grep -qx 'plan-0002	2027-02-06	jpy	open		3000	bank	phone' "$dir/out"
 cp tests/fixtures/common_format/ok-full.txt "$dir/full.txt"
 bin/book "$dir/full.txt" entry tx-0003 | bin/book "$dir/full.txt" save > "$dir/out"
 cmp -s "$dir/full.txt" tests/fixtures/common_format/ok-full.txt
