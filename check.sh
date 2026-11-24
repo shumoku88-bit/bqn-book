@@ -7,6 +7,7 @@ python3 tests/names.py
 bqn tests/test_book.bqn
 bqn tests/test_amount.bqn
 bqn tests/test_change.bqn
+bqn tests/test_form.bqn
 bqn tests/test_store.bqn
 bqn tests/test_view.bqn
 
