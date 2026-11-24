@@ -28,6 +28,11 @@ bin/book "$dir/full.txt" entry tx-0003 | bin/book "$dir/full.txt" save > "$dir/o
 cmp -s "$dir/full.txt" tests/fixtures/common_format/ok-full.txt
 echo "bin/book: ok"
 
+if command -v emacs >/dev/null 2>&1; then
+  emacs --batch -l tests/test_emacs.el -f ert-run-tests-batch-and-exit > "$dir/out" 2>&1 || { cat "$dir/out"; exit 1; }
+  echo "emacs: ok"
+fi
+
 if [ -d ../bakhlo/test ]; then
   for d in common_format records scheduled; do
     diff -r -x '*.ml' "../bakhlo/test/$d" "tests/fixtures/$d"

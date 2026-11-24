@@ -38,10 +38,18 @@ EFFECT	food	jpy	900
 ENDTX
 ```
 
+## Emacs
+
+`emacs/bqn-book.el` は、`bin/book` だけを通して帳簿を見る画面。
+
+- `M-x bqn-book-demo`：見本の帳簿のコピーを一時フォルダに作って開く。気軽に試すとき。
+- `M-x bqn-book-entries`：`bqn-book-file`（なければ聞く）の記帳の一覧。RET でその記帳を変更として開き、`C-c C-p` で下見、`C-c C-c` で保存、`C-c C-k` でやめる。`+` で新しい記帳の雛形、`g` で読み直し。
+- 本物の家計簿（bakhlo-data）は、計画の段階5まで開かない。
+
 BQN から直接使うときは `src/store.bqn` の `Load`・`Save` と `src/change.bqn` の `Apply`。
 
 ```sh
-./check.sh                            # bakhlo の見本、合成の帳簿での保存、bin/book
+./check.sh                            # bakhlo の見本、合成の帳簿での保存、bin/book、Emacs の画面
 ```
 
 計画と進み具合は `docs/PLAN.ja.md`。CBQN と macOS が要る（保存は F_FULLFSYNC を使う）。
