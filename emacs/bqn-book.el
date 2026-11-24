@@ -87,6 +87,7 @@ Return (EXIT . LINES)."
          ("Reverses" 10 t) ("Pays" 14 t)])
   (setq tabulated-list-padding 1)
   (add-hook 'tabulated-list-revert-hook #'bqn-book--list nil t)
+  (display-line-numbers-mode -1)                 ; a table, not text: no line numbers
   (tabulated-list-init-header))
 
 (defun bqn-book--list ()
@@ -238,7 +239,8 @@ Return non-nil when saved."
        (let ((inhibit-read-only t))
          (erase-buffer)
          (insert (mapconcat #'bqn-book--shown (cdr added) "\n") "\n"))
-       (special-mode))
+       (special-mode)
+       (display-line-numbers-mode -1))
      (display-buffer "*book preview*")
      (when (y-or-n-p "Save this? ")
        (pcase (bqn-book--call file '("save") (concat (string-join change "\n") "\n"))
@@ -396,7 +398,8 @@ C-c C-a inserts an account by its name, C-c C-k discards."
 
 (define-derived-mode bqn-book-home-mode special-mode "Book home"
   "A book at a glance: today's guide, balances, open plans and recent entries."
-  (setq-local revert-buffer-function (lambda (&rest _) (bqn-book--draw-home))))
+  (setq-local revert-buffer-function (lambda (&rest _) (bqn-book--draw-home)))
+  (display-line-numbers-mode -1))
 
 (defun bqn-book--draw-home ()
   (let* ((inhibit-read-only t)
@@ -412,7 +415,11 @@ C-c C-a inserts an account by its name, C-c C-k discards."
          (pool (or bqn-book--pool bqn-book-pace-pool))
          (point (point)))
     (erase-buffer)
-    (insert (propertize (abbreviate-file-name file) 'face 'bold) "    " today "\n\n")
+    ;; the book by its folder and name: the whole path can be long
+    (insert (propertize (file-name-concat (file-name-nondirectory (directory-file-name (file-name-directory file)))
+                                          (file-name-nondirectory file))
+                        'face 'bold)
+            "    " today "\n\n")
     ;; today's guide
     (insert (propertize "Today's guide" 'face 'bold))
     (if (null pool)
