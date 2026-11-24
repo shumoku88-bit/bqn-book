@@ -40,4 +40,16 @@ printf 'bank\tjpy\n' > "$dir/config/daily-pace.tsv"
 theirs=$("$bk" --book "$book" pace | sed -n 's/^ Today [0-9-]*: \([0-9,-]*\) jpy\/day$/\1/p' | tr -d ,)
 ours=$(printf 'PACE\tjpy\t%s\t2099-01-01\nPOOL\tbank\n' "$today" | bin/book "$book" ask | sed -n 's/^DAILY	//p')
 [ -n "$theirs" ] && [ "$theirs" = "$ours" ]
+# 4. the same plans in series, with the same missing months: amount, next, last,
+# how many, and the notes (monthly, missing) of every series, in bk's order
+cp tests/fixtures/scheduled/series.txt "$book"
+printf 'phone\t2027-01-25\t1\tbank\tphone\nrent\t2027-01-27\t1\tbank\trent\n' > "$dir/config/scheduled-coverage.tsv"
+theirs=$("$bk" --book "$book" plans < /dev/null | tail -n +2 |
+  awk -F "  +" "{ gsub(/,/, \"\", \$5); print \$5, \$7, \$8, \$9, \$10 }")
+ours=$(bin/book "$book" series "$today" | awk -F '\t' '{
+  note = ($5 < "'"$today"'") ? "overdue" : ""
+  if ($8 == 1) note = note (note == "" ? "" : ", ") "monthly"
+  if ($9 != "") note = note ", missing " $9
+  print $3, $5, $6, $7, note }')
+[ -n "$theirs" ] && [ "$theirs" = "$ours" ] || { printf 'bk plans:\n%s\nours:\n%s\n' "$theirs" "$ours"; exit 1; }
 echo "with bk: ok"

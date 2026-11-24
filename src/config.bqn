@@ -6,6 +6,9 @@
 #   measure Pool text      daily-pace.tsv → the accounts, or {ok⇐0, code}
 #   View text              balance-view.tsv → the balances to show, locus‿measure
 #                          each, in order, or {ok⇐0, code}: not-configured, malformed
+#   Coverage text          scheduled-coverage.tsv → the rules watching plan series:
+#                          {name, anchor, every, negative, positive} each, or
+#                          {ok⇐0, code}: not-configured, malformed
 #   text Cycle day         boundary-presets.tsv → {ok⇐1, name, start, end} for the
 #                          window holding day (end excluded), or {ok⇐0, code}:
 #                          not-configured, malformed, no-cycle:<day>, ambiguous:<day>
@@ -34,15 +37,45 @@ Pool ⇐ {measure 𝕊 text:
   ⟩
 }
 
+# A file bk writes: its lines (a final newline ends the last one) split at tabs;
+# nothing when missing or empty. "\n" alone is one empty line, as bakhlo splits it.
+FileLines ← {
+  @≡𝕩 ? ⟨⟩ ;
+  0=≠𝕩 ? ⟨⟩ ;
+  tab⊸Split¨ lf Split (-⊑lf∊¯1↑𝕩)↓𝕩
+}
+
 # balance-view.tsv: bk writes it, one account and Measure per line, nothing else;
 # any other line refuses the whole file (bakhlo cli/balance_view_data.ml)
 View ⇐ {
-  # one final newline ends the last line; an empty file shows nothing
-  Coordinates ← {body ← (-⊑lf∊¯1↑𝕩)↓𝕩 ⋄ (0<≠body)◶⟨⟨⟩˙, {𝕊: tab⊸Split¨ lf Split body}⟩ @}
-  rows ← (@≢𝕩)◶⟨⟨⟩˙, Coordinates⟩ 𝕩
+  rows ← FileLines 𝕩
   {𝕊: rows} _unless ⟨
     "not-configured"‿(@≡𝕩)
     "malformed"‿(∨´{(2≠≠𝕩) ∨ ¬∧´Token¨𝕩}¨rows)
+  ⟩
+}
+
+# scheduled-coverage.tsv: bk writes it, a rule per line: a name, an anchor day,
+# every how many months (0: undecided), the accounts paid from and received by
+# (each a comma list, its order and repeats ignored but repeats refused). Names
+# and account pairs are each used once. Any other line refuses the whole file
+# (bakhlo cli/scheduled_coverage.ml).
+Coverage ⇐ {
+  Plain ← {(0<≠𝕩) ∧ ¬∨´𝕩∊tab‿lf‿cr}
+  Accounts ← {xs ← ',' Split 𝕩 ⋄ (∧´Plain¨xs) ∧ ∧´∊xs}
+  WellFormed ← {
+    5≠≠𝕩 ? 0 ;
+    name‿anchor‿every‿paying‿receiving ← 𝕩
+    (Plain name) ∧ (read.IsDate anchor) ∧ (1≤≠every) ∧ (9≥≠every) ∧ (∧´every∊'0'+↕10) ∧ (Accounts paying) ∧ Accounts receiving
+  }
+  Rule ← {𝕊 n‿a‿e‿ng‿ps: {name⇐n ⋄ anchor⇐a ⋄ every⇐•ParseFloat e ⋄ negative⇐∧',' Split ng ⋄ positive⇐∧',' Split ps}}
+  rows ← FileLines 𝕩
+  formed ← ∧´WellFormed¨rows
+  rules ← formed◶⟨⟨⟩˙, Rule¨⟩ rows
+  {𝕊: rules} _unless ⟨
+    "not-configured"‿(@≡𝕩)
+    "malformed"‿(¬formed)
+    "malformed"‿(¬(∧´∊{𝕩.name}¨rules) ∧ ∧´∊{𝕩.negative⋈𝕩.positive}¨rules)
   ⟩
 }
 

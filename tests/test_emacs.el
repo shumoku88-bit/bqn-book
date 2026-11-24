@@ -177,4 +177,28 @@
     (with-current-buffer (bqn-book-home copy)
       (should (string-match-p "Balances\n  Wallet +jpy +20,000\n  Bank +jpy +195,000\n  nowhere +jpy +\\?\n\n" (buffer-string))))))
 
+(ert-deftest bqn-book-series-lists-and-pays ()
+  ;; plans in series, as bk plans lists them; a series' plans; paying one there
+  (let* ((copy (test-bqn-book--copy))
+         (home (save-window-excursion (bqn-book-home copy))))
+    (with-current-buffer home (setq bqn-book--today "2027-02-01"))
+    (let ((series (with-current-buffer home (save-window-excursion (bqn-book-home-series)))))
+      (with-current-buffer series
+        (should (string-match-p "Bank +Rent +80,000 +jpy +2027-02-27 +2027-03-27 +2"
+                                (buffer-substring-no-properties (point-min) (point-max))))
+        (goto-char (point-min))
+        (search-forward "Phone")
+        (should (string-match-p "overdue" (buffer-substring-no-properties (line-beginning-position) (line-end-position))))
+        (goto-char (point-min))
+        (search-forward "Rent")
+        (let ((plans (save-window-excursion (bqn-book-series-plans))))
+          (with-current-buffer plans
+            (should (equal (mapcar #'car tabulated-list-entries) '("rent-2027-02" "rent-2027-03")))
+            (goto-char (point-min))
+            (search-forward "2027-02-27")
+            (save-window-excursion (bqn-book-pay-plan))
+            (with-current-buffer "*book form rent-2027-02*"
+              (test-bqn-book--answering '() (bqn-book-form-submit)))
+            (should (equal (mapcar #'car tabulated-list-entries) '("rent-2027-03")))))))))
+
 ;;; test_emacs.el ends here

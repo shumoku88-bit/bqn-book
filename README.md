@@ -15,6 +15,7 @@ bakhlo がしていることを、BQN でどれだけシンプルに書けるか
 | | `src/pace.bqn` | 今日の目安（Daily Pace）、過去の日の目安、日ごとの動き。bakhlo の問いの言語（PACE・PAST・ACTIVITY）で答える |
 | | `src/amount.bqn` | 入力した金額を、通貨の桁で厳密に最小単位へ（`(500+300)/2`、全角、桁区切り）。表示はその逆 |
 | | `src/form.bqn` | 記帳フォーム：記帳や予定をフォームの行で開く、入力（日付・メモ・通貨・科目と ± 金額）から記帳を組み立てる、返金、両替 |
+| | `src/series.bqn` | 予定のまとまり（同じ科目から同じ科目へのまだの予定）と、補充の見張り（scheduled-coverage.tsv） |
 | | `src/config.bqn` | bk の設定を読む：今日の目安の科目（daily-pace.tsv）、周期（boundary-presets.tsv） |
 | | `src/view.bqn` | 画面が並べる一覧：通貨、科目、記帳、予定 |
 | | `src/change.bqn` | 変更。bakhlo の変更の言語（`PUT-ENTRY NEW` と TX ブロック）で受け取り、本文を編集して、まるごと読み直して受け入れる |
@@ -34,6 +35,8 @@ bin/book book.txt form NEW - < form  # フォーム（DAY・MEMO・MEASURE・ROW
 bin/book book.txt form EDIT <ID> < form   # 訂正。PAY <予定ID> はその予定を払う新しい記帳
 bin/book book.txt refund <ID> <日付>     # 返金の変更
 bin/book book.txt pool | cycle <日>     # bk の設定：目安の科目、その日を含む周期
+bin/book book.txt series <今日>        # 予定のまとまり（bk plans と同じ）
+bin/book book.txt view                 # bk が残高画面で見せる科目
 bin/backup book.txt                  # 保存のあとのバックアップ（帳簿の Git に commit と push。bk と同じ）
 ```
 

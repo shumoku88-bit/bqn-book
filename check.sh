@@ -9,6 +9,7 @@ bqn tests/test_amount.bqn
 bqn tests/test_change.bqn
 bqn tests/test_form.bqn
 bqn tests/test_config.bqn
+bqn tests/test_series.bqn
 bqn tests/test_store.bqn
 bqn tests/test_view.bqn
 sh tests/test_with_bk.sh

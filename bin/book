@@ -25,6 +25,12 @@
 #                              the change that refunds the entry
 #   book <book.txt> pool       the accounts today's guide spends from (bk's daily-pace.tsv)
 #   book <book.txt> view       the balances bk shows (balance-view.tsv): account, Measure
+#   book <book.txt> series <today>
+#                              the open plans in series, as bk plans lists them:
+#                              paid from, received by (accounts joined by ,), the
+#                              amount (or split), Measure, next day, last day, how
+#                              many, the watching rule's months (or ""), its first
+#                              missing month (or ""), the plans' IDs (joined by ,)
 #   book <book.txt> cycle <day>
 #                              the cycle holding day: name, start, end (bk's
 #                              boundary-presets.tsv; end excluded)
@@ -39,6 +45,8 @@ balance ← •Import "../src/balance.bqn"
 pace ← •Import "../src/pace.bqn"
 form ← •Import "../src/form.bqn"
 config ← •Import "../src/config.bqn"
+series ← •Import "../src/series.bqn"
+print ← •Import "../src/print.bqn"
 view ← •Import "../src/view.bqn"
 tab ← @+9
 Row ← {1↓∾(tab∾⊢)¨𝕩}
@@ -86,14 +94,31 @@ Setting ← {
 }
 Pooled ← {𝕊: r ← (⊑loaded.book.measure.id) config.Pool Setting "daily-pace.tsv" ⋄ (6=•Type r)◶⟨Out, Refused⟩ r}
 Viewed ← {𝕊: r ← config.View Setting "balance-view.tsv" ⋄ (6=•Type r)◶⟨Out∘(Row¨), Refused⟩ r}
+# a coverage file bk cannot read watches nothing, as in bk plans
+Serial ← {𝕊:
+  b ← loaded.book
+  rules ← {6=•Type 𝕩 ? ⟨⟩ ; 𝕩} config.Coverage Setting "scheduled-coverage.tsv"
+  groups ← series.Series b
+  shapes ← series.Shapes b
+  simple ← series.Simple b
+  Commas ← {1↓∾(','∾⊢)¨𝕩}
+  Line ← {𝕊 g‿(r‿missing):
+    f ← ⊑g
+    paying‿receiving ← f⊑shapes
+    ⟨Commas paying, Commas receiving, {@≡𝕩 ? "split" ; print.Int 𝕩} f⊑simple, f⊑b.plan.measure,
+     f⊑b.plan.day, (¯1⊑g)⊑b.plan.day, print.Int ≠g, (r≥0)◶⟨"", {𝕊: print.Int (r⊑rules).every}⟩ @,
+     missing, Commas g⊏b.plan.id⟩
+  }
+  Out Row∘Line¨ groups ⋈¨ b series.Watch rules‿id‿12
+}
 Cycled ← {𝕊: r ← (Setting "boundary-presets.tsv") config.Cycle id ⋄ r.ok◶⟨Refused, Out∘{⟨Row 𝕩.name‿𝕩.start‿𝕩.end⟩}⟩ r}
 Usage ← {𝕊: •Out "usage: book <book.txt> balances|preview|save|ask|measures|loci|entries|plans|entry <id>|plan <id>|open ENTRY|PLAN <id>|form NEW - | EDIT <id> | PAY <plan>|refund <id> <day>" ⋄ •Exit 2}
-commands ← "balances"‿"preview"‿"save"‿"ask"‿"measures"‿"loci"‿"entries"‿"plans"‿"entry"‿"plan"‿"open"‿"form"‿"refund"‿"pool"‿"cycle"‿"view"
+commands ← "balances"‿"preview"‿"save"‿"ask"‿"measures"‿"loci"‿"entries"‿"plans"‿"entry"‿"plan"‿"open"‿"form"‿"refund"‿"pool"‿"cycle"‿"view"‿"series"
 (⊑commands⊐<command)◶⟨
   Balances, Preview, Save, Ask
   {𝕊: Listed view.measures}, {𝕊: Listed view.loci}, {𝕊: Listed view.entries}, {𝕊: Listed view.plans}   # as values
   {𝕊: Edited "TX"}, {𝕊: Edited "PLAN"}
   Opened, Filled, Refunded
-  Pooled, Cycled, Viewed
+  Pooled, Cycled, Viewed, Serial
   Usage
 ⟩ @

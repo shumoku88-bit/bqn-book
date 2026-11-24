@@ -62,10 +62,12 @@ Return (EXIT . LINES)."
       (cons exit (split-string (buffer-string) "\n" t)))))
 
 (defun bqn-book--rows (file command)
-  "The rows bin/book lists for COMMAND on FILE, each a list of fields."
-  (pcase (bqn-book--call file (list command))
-    (`(0 . ,lines) (mapcar (lambda (line) (split-string line "\t")) lines))
-    (`(,_ . ,lines) (user-error "bin/book %s: %s" command (string-join lines " ")))))
+  "The rows bin/book lists for COMMAND (a word, or a list with its arguments) on
+FILE, each a list of fields."
+  (let ((args (ensure-list command)))
+    (pcase (bqn-book--call file args)
+      (`(0 . ,lines) (mapcar (lambda (line) (split-string line "\t")) lines))
+      (`(,_ . ,lines) (user-error "bin/book %s: %s" (car args) (string-join lines " "))))))
 
 (defun bqn-book--shown (text)
   "TEXT as written in book.txt, made readable on one line."
@@ -445,6 +447,7 @@ Columns, not characters: a Japanese character takes two."
   "l" #'bqn-book-home-entries
   "RET" #'bqn-book-pay-plan
   "p" #'bqn-book-pay-plan
+  "s" #'bqn-book-home-series
   "g" #'revert-buffer)
 
 (define-derived-mode bqn-book-home-mode special-mode "Book home"
@@ -534,7 +537,7 @@ Columns, not characters: a Japanese character takes two."
       (insert (format "  %s  %s\n" (nth 1 row)
                       (if (string-empty-p (nth 2 row)) (propertize "(no memo)" 'face 'shadow)
                         (bqn-book--shown (nth 2 row))))))
-    (insert "\n" (propertize "+ new entry   RET on a plan: pay it   l entries   g reread" 'face 'shadow) "\n")
+    (insert "\n" (propertize "+ new entry   RET on a plan: pay it   s plans in series   l entries   g reread" 'face 'shadow) "\n")
     (goto-char (min point (point-max)))))
 
 ;;;###autoload
@@ -553,7 +556,8 @@ Columns, not characters: a Japanese character takes two."
   "Pay the open plan at point: a form with its accounts and amounts, dated today.
 Change an amount to pay a different one; C-c C-c previews and saves."
   (interactive)
-  (let ((plan (get-text-property (point) 'bqn-book-plan)))
+  (let ((plan (or (get-text-property (point) 'bqn-book-plan)
+                  (and (derived-mode-p 'bqn-book-series-plans-mode) (tabulated-list-get-id)))))
     (unless plan (user-error "Move to an open plan to pay it"))
     (pcase (bqn-book--call bqn-book--file (list "open" "PLAN" plan))
       (`(0 . ,rows)
@@ -565,6 +569,123 @@ Change an amount to pay a different one; C-c C-c previews and saves."
   "The entries of this home's book."
   (interactive)
   (bqn-book-entries bqn-book--file))
+
+;;;; Plans in series: what bk plans lists
+
+(defun bqn-book--names (file)
+  "FILE's accounts: (id . name)."
+  (mapcar (lambda (r) (cons (car r) (bqn-book--shown (nth 1 r)))) (bqn-book--rows file "loci")))
+
+(defun bqn-book--scale (file measure)
+  "How many decimals MEASURE has in FILE."
+  (string-to-number (or (cadr (assoc measure (bqn-book--rows file "measures"))) "0")))
+
+(defun bqn-book--named (ids names)
+  "IDS (joined by commas) by their NAMES, joined by +."
+  (mapconcat (lambda (l) (or (cdr (assoc l names)) l)) (split-string ids "," t) " + "))
+
+(defvar-keymap bqn-book-series-mode-map
+  :parent tabulated-list-mode-map
+  "RET" #'bqn-book-series-plans
+  "g" #'revert-buffer)
+
+(define-derived-mode bqn-book-series-mode tabulated-list-mode "Book series"
+  "Open plans in series, as bk plans lists them: the same accounts paying and
+receiving, whatever the amounts. RET shows a series' plans."
+  (setq tabulated-list-format
+        [("From" 14 t) ("To" 18 t) ("Amount" 10 nil :right-align t) ("" 4 t)
+         ("Next" 10 t) ("Last" 10 t) ("Open" 4 nil :right-align t) ("" 0 nil)])
+  (setq tabulated-list-padding 1)
+  (add-hook 'tabulated-list-revert-hook #'bqn-book--series nil t)
+  (display-line-numbers-mode -1)
+  (tabulated-list-init-header))
+
+(defun bqn-book--cadence (months)
+  "bk's word for a coverage rule's MONTHS."
+  (pcase months ("0" "undecided") ("1" "monthly") ("12" "yearly") (_ (format "every %sm" months))))
+
+(defun bqn-book--series ()
+  "Fill the series buffer from bin/book."
+  (let* ((file bqn-book--file)
+         (today (bqn-book--day-today))
+         (names (bqn-book--names file)))
+    (setq tabulated-list-entries
+          (mapcar (lambda (row)
+                    (pcase-let ((`(,from ,to ,q ,m ,next ,last ,count ,every ,missing ,ids) row))
+                      (list ids
+                            (vector (bqn-book--named from names) (bqn-book--named to names)
+                                    (if (equal q "split") "split" (bqn-book--money q (bqn-book--scale file m)))
+                                    m next last count
+                                    (string-join
+                                     (delq nil (list (and (string< next today) (propertize "overdue" 'face 'warning))
+                                                     (and (not (string-empty-p every)) (bqn-book--cadence every))
+                                                     (and (not (string-empty-p missing))
+                                                          (propertize (concat "missing " missing) 'face 'warning))))
+                                     ", ")))))
+                  (bqn-book--rows file (list "series" today))))))
+
+(defun bqn-book-home-series ()
+  "The open plans of this home's book, in series."
+  (interactive)
+  (let ((file bqn-book--file) (today bqn-book--today)
+        (buffer (get-buffer-create (format "*book series %s*" (abbreviate-file-name bqn-book--file)))))
+    (with-current-buffer buffer
+      (bqn-book-series-mode)
+      (setq bqn-book--file file bqn-book--today today)
+      (bqn-book--series)
+      (tabulated-list-print))
+    (pop-to-buffer-same-window buffer)
+    (message "RET a series' plans   g reread")
+    buffer))
+
+(defvar-local bqn-book--series-ids nil "The plans this series buffer shows.")
+
+(defvar-keymap bqn-book-series-plans-mode-map
+  :parent tabulated-list-mode-map
+  "RET" #'bqn-book-pay-plan
+  "p" #'bqn-book-pay-plan
+  "g" #'revert-buffer)
+
+(define-derived-mode bqn-book-series-plans-mode tabulated-list-mode "Book plans"
+  "One series' open plans by day. RET pays the plan at point."
+  (setq tabulated-list-format [("Due" 10 t) ("Amount" 10 nil :right-align t) ("" 4 t) ("" 0 nil)])
+  (setq tabulated-list-padding 1)
+  (add-hook 'tabulated-list-revert-hook #'bqn-book--series-plans nil t)
+  (display-line-numbers-mode -1)
+  (tabulated-list-init-header))
+
+(defun bqn-book--series-plans ()
+  "Fill a series' plans buffer: those of its plans still open."
+  (let* ((file bqn-book--file)
+         (today (bqn-book--day-today))
+         (rows (bqn-book--rows file "plans")))
+    (setq tabulated-list-entries
+          (delq nil
+                (mapcar (lambda (id)
+                          (pcase (assoc id rows)
+                            (`(,id ,day ,m "open" ,_ ,q . ,_)
+                             (list id (vector day (bqn-book--money q (bqn-book--scale file m)) m
+                                              (if (string< day today) (propertize "overdue" 'face 'warning) ""))))))
+                        bqn-book--series-ids)))))
+
+(defun bqn-book-series-plans ()
+  "The plans of the series at point."
+  (interactive)
+  (let ((ids (tabulated-list-get-id))
+        (title (aref (tabulated-list-get-entry) 1))
+        (file bqn-book--file) (today bqn-book--today) (series (current-buffer)))
+    (unless ids (user-error "No series here"))
+    (let ((buffer (get-buffer-create (format "*book plans → %s*" title))))
+      (with-current-buffer buffer
+        (bqn-book-series-plans-mode)
+        (setq bqn-book--file file bqn-book--today today
+              bqn-book--series-ids (split-string ids "," t)
+              bqn-book--list-buffer series)
+        (bqn-book--series-plans)
+        (tabulated-list-print))
+      (pop-to-buffer-same-window buffer)
+      (message "RET pay the plan at point   g reread")
+      buffer)))
 
 (provide 'bqn-book)
 ;;; bqn-book.el ends here
