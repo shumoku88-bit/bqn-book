@@ -80,4 +80,24 @@
     (should (string-match-p "DESC\tRefund\nEFFECT\tbank\tjpy\t20000\nEFFECT\twallet\tjpy\t-20000\nREVERSAL-OF\ttx-0002"
                             (test-bqn-book--text copy)))))
 
+(ert-deftest bqn-book-shows-money-with-its-decimals ()
+  (should (equal (bqn-book--money "1234567" 0) "1,234,567"))
+  (should (equal (bqn-book--money "-123450" 2) "-1,234.50"))
+  (should (equal (bqn-book--money "5" 2) "0.05"))
+  (should (equal (bqn-book--money "999" 0) "999")))
+
+(ert-deftest bqn-book-home-shows-the-guide-and-takes-a-new-entry ()
+  (let* ((copy (test-bqn-book--copy))
+         (home (save-window-excursion (bqn-book-home copy))))
+    (with-current-buffer home
+      (setq bqn-book--today "2027-02-01" bqn-book--pool '("bank"))
+      (revert-buffer)
+      (should (string-match-p "Per day +3,285" (buffer-string)))
+      (should (string-match-p "2027-01-25  phone-2027-01 +jpy +3,000  overdue" (buffer-string)))
+      (should (string-match-p "(4 with no known balance)" (buffer-string)))
+      (test-bqn-book--answering '("2027-02-01" "coffee" "Bank (bank)" "-500" "Wallet (wallet)" "+500" "")
+                                (save-window-excursion (bqn-book-new-entry)))
+      (should (string-match-p "Spendable +194,500" (buffer-string)))
+      (should (string-match-p "2027-02-01  coffee" (buffer-string))))))
+
 ;;; test_emacs.el ends here

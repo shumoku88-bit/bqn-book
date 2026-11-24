@@ -15,7 +15,7 @@ entries ← view.Entries full
 4 Assert "" ≡ 3⊑(entries Row "tx-0001")⊑entries         # unclassified, not NONMERCHANT
 5 Assert "内容不明の出金\tあとで確認\\済" ≡ 2⊑(entries Row "tx-0009")⊑entries   # escaped
 plans ← view.Plans full
-6 Assert (2↓¨plans) ≡ ⟨⟨"jpy","paid","tx-0004"⟩,⟨"jpy","open",""⟩,⟨"jpy","cancelled","2027-01-20"⟩⟩
+6 Assert (2↓¨plans) ≡ ⟨⟨"jpy","paid","tx-0004","3000"⟩,⟨"jpy","open","","3000"⟩,⟨"jpy","cancelled","2027-01-20","3000"⟩⟩
 loci ← view.Loci full
 7 Assert ⟨"old-phone","旧電話代","解約した回線","HIDDEN",""⟩ ≡ (loci Row "old-phone")⊑loci
 8 Assert "ASSET" ≡ 4⊑(loci Row "wallet")⊑loci

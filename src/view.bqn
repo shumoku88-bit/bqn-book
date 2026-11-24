@@ -28,7 +28,8 @@ Entries ⇐ {
   Rows ⟨b.tx.id, b.tx.day, print.Escape¨b.tx.memo, merchant, reverses, pays⟩
 }
 
-# id, due day, Measure, open | paid | cancelled, the paying TX or the cancelling day
+# id, due day, Measure, open | paid | cancelled, the paying TX or the cancelling day,
+# and how much it moves (the sum of its positive changes, in smallest units)
 Plans ⇐ {
   b ← 𝕩
   n ← ≠b.plan.id
@@ -37,5 +38,6 @@ Plans ⇐ {
   state ← (paid<≠b.paid.plan)+2×cancelled<≠b.cancelled.plan
   detail ← (b.paid.tx∾<"")⊏˜paid
   detail ↩ ((b.cancelled.day∾<"")⊏˜cancelled) {0=≠𝕩 ? 𝕨 ; 𝕩}¨ detail
-  Rows ⟨b.plan.id, b.plan.day, b.plan.measure, state⊏"open"‿"paid"‿"cancelled", detail⟩
+  moves ← +´¨(b.change.plan∾n)⊔0⌈b.change.amount
+  Rows ⟨b.plan.id, b.plan.day, b.plan.measure, state⊏"open"‿"paid"‿"cancelled", detail, print.Int¨moves⟩
 }

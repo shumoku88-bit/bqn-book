@@ -12,7 +12,7 @@
 #   book <book.txt> loci       id, label, help, HIDDEN or "", role or ""
 #   book <book.txt> entries    id, day, memo, merchant (name, NONMERCHANT, "" if
 #                              unclassified), the TX it reverses, the plan it pays
-#   book <book.txt> plans      id, due day, Measure, open|paid|cancelled, its TX or day
+#   book <book.txt> plans      id, due day, Measure, open|paid|cancelled, its TX or day, amount
 #   book <book.txt> entry <id> the entry as a change that would keep it: edit, then save
 #   book <book.txt> plan <id>  the same for a plan
 #   book <book.txt> open ENTRY|PLAN <id>

@@ -12,7 +12,10 @@
 ;;     r     refund the entry
 ;;     e     edit the entry as a change (for exchanges and refunds, which no form opens)
 ;;     g     read the book again
-;;   M-x bqn-book-demo      the same on a copy of a synthetic sample book
+;;   M-x bqn-book-home      the book at a glance: today's guide (the accounts in
+;;                          `bqn-book-pace-pool'), balances, open plans, recent entries;
+;;                          + new entry, l entries, g reread
+;;   M-x bqn-book-demo      the home of a copy of a synthetic sample book
 ;;
 ;; Text in a change is written as in book.txt: a memo's tab is \t, a backslash \\.
 
@@ -123,7 +126,10 @@ Return (EXIT . LINES)."
                                    (file-name-directory bqn-book-command)))
          (copy (expand-file-name "book.txt" (make-temp-file "bqn-book-demo" t))))
     (copy-file sample copy)
-    (bqn-book-entries copy)))
+    (with-current-buffer (bqn-book-home copy)
+      ;; the sample book lives in 2027; count from there, with the bank to spend
+      (setq bqn-book--today "2027-02-01" bqn-book--pool '("bank"))
+      (revert-buffer))))
 
 ;;;; Changes
 
@@ -349,6 +355,123 @@ C-c C-a inserts an account by its name, C-c C-k discards."
                            (list "refund" id (read-string "Day: " (format-time-string "%Y-%m-%d"))))
       (`(0 . ,change) (bqn-book--save-change bqn-book--file change (current-buffer)))
       (`(,_ . ,lines) (bqn-book--refusal lines)))))
+
+;;;; Home: today's guide, balances, open plans and recent entries
+
+(defcustom bqn-book-pace-pool nil
+  "The accounts today's guide counts as money to spend, like (\"bank\" \"wallet\")."
+  :type '(repeat string))
+
+(defvar-local bqn-book--today nil "The day the home counts from; nil for today.")
+(defvar-local bqn-book--pool nil "The guide's accounts in this home; nil for `bqn-book-pace-pool'.")
+
+(defun bqn-book--day-today ()
+  (or bqn-book--today (format-time-string "%Y-%m-%d")))
+
+(defun bqn-book--next-month (day)
+  "The first day of the month after DAY (YYYY-MM-DD)."
+  (let* ((y (string-to-number (substring day 0 4)))
+         (m (string-to-number (substring day 5 7))))
+    (if (= m 12) (format "%04d-01-01" (1+ y)) (format "%04d-%02d-01" y (1+ m)))))
+
+(defun bqn-book--money (quanta scale)
+  "QUANTA (smallest units, as text) shown with SCALE decimals and thousands commas."
+  (let* ((n (string-to-number quanta))
+         (whole (/ (abs n) (expt 10 scale)))
+         (part (% (abs n) (expt 10 scale)))
+         (digits (number-to-string whole))
+         (grouped (replace-regexp-in-string "\\([0-9]\\)\\(\\([0-9]\\{3\\}\\)+\\)\\'"
+                                            (lambda (m) (concat (match-string 1 m) ","
+                                                                (mapconcat #'identity
+                                                                           (seq-partition (match-string 2 m) 3) ",")))
+                                            digits)))
+    (concat (if (< n 0) "-" "") grouped
+            (if (> scale 0) (format (format ".%%0%dd" scale) part) ""))))
+
+(defvar-keymap bqn-book-home-mode-map
+  :parent special-mode-map
+  "+" #'bqn-book-new-entry
+  "l" #'bqn-book-home-entries
+  "g" #'revert-buffer)
+
+(define-derived-mode bqn-book-home-mode special-mode "Book home"
+  "A book at a glance: today's guide, balances, open plans and recent entries."
+  (setq-local revert-buffer-function (lambda (&rest _) (bqn-book--draw-home))))
+
+(defun bqn-book--draw-home ()
+  (let* ((inhibit-read-only t)
+         (file bqn-book--file)
+         (today (bqn-book--day-today))
+         (end (bqn-book--next-month today))
+         (scales (mapcar (lambda (r) (cons (car r) (string-to-number (cadr r))))
+                         (bqn-book--rows file "measures")))
+         (measure (caar scales))
+         (Money (lambda (q m) (bqn-book--money q (or (cdr (assoc m scales)) 0))))
+         (names (mapcar (lambda (r) (cons (car r) (bqn-book--shown (nth 1 r))))
+                        (bqn-book--rows file "loci")))
+         (pool (or bqn-book--pool bqn-book-pace-pool))
+         (point (point)))
+    (erase-buffer)
+    (insert (propertize (abbreviate-file-name file) 'face 'bold) "    " today "\n\n")
+    ;; today's guide
+    (insert (propertize "Today's guide" 'face 'bold))
+    (if (null pool)
+        (insert "\n  Set `bqn-book-pace-pool' to the accounts you spend from.\n\n")
+      (let ((answer (cdr (bqn-book--call
+                          file '("ask")
+                          (concat (string-join (list "PACE" measure today end) "\t") "\n"
+                                  (mapconcat (lambda (p) (concat "POOL\t" p "\n")) pool ""))))))
+        (insert (format "  %s, until %s\n" measure end))
+        (dolist (line answer)
+          (pcase (split-string line "\t")
+            (`("BALANCE" ,locus ,q) (insert (format "  %-14s %12s  %s\n" "Spendable" (funcall Money q measure)
+                                                    (or (cdr (assoc locus names)) locus))))
+            (`("DEDUCTION" ,plan ,q) (insert (format "  %-14s %12s  %s\n" "Set aside" (funcall Money (concat "-" q) measure) plan)))
+            (`("AVAILABLE" ,q) (insert (format "  %-14s %12s\n" "Left" (funcall Money q measure))))
+            (`("DAYS" ,n) (insert (format "  %-14s %12s\n" "Days" n)))
+            (`("DAILY" ,q) (insert (propertize (format "  %-14s %12s\n" "Per day" (funcall Money q measure)) 'face 'success)))
+            (`("REFUSED" ,why) (insert (format "  Not known: %s\n" why)))))
+        (insert "\n")))
+    ;; balances
+    (insert (propertize "Balances" 'face 'bold) "\n")
+    (let ((unknown 0))
+      (dolist (row (bqn-book--rows file "balances"))
+        (pcase-let ((`(,locus ,m ,q) row))
+          (if (equal q "?") (setq unknown (1+ unknown))
+            (insert (format "  %-14s %-4s %12s\n" (or (cdr (assoc locus names)) locus) m (funcall Money q m))))))
+      (when (> unknown 0) (insert (format "  (%d with no known balance)\n" unknown))))
+    ;; open plans
+    (insert "\n" (propertize "Open plans" 'face 'bold) "\n")
+    (dolist (row (sort (seq-filter (lambda (r) (equal (nth 3 r) "open")) (bqn-book--rows file "plans"))
+                       (lambda (a b) (string< (nth 1 a) (nth 1 b)))))
+      (pcase-let ((`(,id ,day ,m ,_ ,_ ,q) row))
+        (insert (format "  %s  %-18s %-4s %12s%s\n" day id m (funcall Money q m)
+                        (if (string< day today) "  overdue" "")))))
+    ;; recent entries
+    (insert "\n" (propertize "Recent entries" 'face 'bold) "\n")
+    (dolist (row (last (bqn-book--rows file "entries") 5))
+      (insert (format "  %s  %s\n" (nth 1 row)
+                      (if (string-empty-p (nth 2 row)) (propertize "(no memo)" 'face 'shadow)
+                        (bqn-book--shown (nth 2 row))))))
+    (insert "\n" (propertize "+ new entry   l entries   g reread" 'face 'shadow) "\n")
+    (goto-char (min point (point-max)))))
+
+;;;###autoload
+(defun bqn-book-home (file)
+  "Show the book FILE at a glance."
+  (interactive (list (or bqn-book-file (read-file-name "book.txt: " nil nil t))))
+  (let ((buffer (get-buffer-create (format "*book home %s*" (abbreviate-file-name file)))))
+    (with-current-buffer buffer
+      (bqn-book-home-mode)
+      (setq bqn-book--file (expand-file-name file))
+      (bqn-book--draw-home))
+    (pop-to-buffer-same-window buffer)
+    buffer))
+
+(defun bqn-book-home-entries ()
+  "The entries of this home's book."
+  (interactive)
+  (bqn-book-entries bqn-book--file))
 
 (provide 'bqn-book)
 ;;; bqn-book.el ends here
