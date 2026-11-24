@@ -11,9 +11,13 @@ Read `README.md` and `docs/PLAN.ja.md` first.
   or pull requests.
 - The format belongs to bakhlo (`bakhlo/docs/COMMON_FORMAT.ja.md`). Do not change it
   here; agree with bakhlo's answers, sample by sample.
-- Never write the household (`../bakhlo-data`) before stage 5 of the plan and moko's
-  explicit decision. Real-data checks use bakhlo's `./tools/household-copy`; keep
-  private names, memos, amounts and counts out of this repository and its history.
+- 2026-11-24 (stage 5): moko records the household (`../bakhlo-data`) through bk in the
+  terminal or through bqn-book's Emacs screen, side by side; bakhlo's AGENTS.md says the
+  same. They take turns by `book.txt.lock` and K12 (`tests/test_with_bk.sh`); bqn-book
+  backs up after each save as bk does (`bin/backup`). The AI still never writes the
+  household: real-data checks use bakhlo's `./tools/household-copy`. Keep private names,
+  memos, amounts and counts out of this repository and its history; the household's own
+  settings live in `emacs/local.el`, which Git ignores.
 
 ## Layers (moko, 2026-11-24)
 

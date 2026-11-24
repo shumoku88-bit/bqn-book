@@ -39,6 +39,11 @@ Saving writes this file. Do not point it at the household (bakhlo-data) until
 moko has decided so (bqn-book docs/PLAN.ja.md, stage 5)."
   :type '(choice (const :tag "Ask" nil) file))
 
+(defcustom bqn-book-backup nil
+  "After each save, commit and push the book's own Git repository, as bk does when
+it ends (bin/backup). For the household book, whose folder is its backup repository."
+  :type 'boolean)
+
 ;;;; Talking to bin/book
 
 (defun bqn-book--call (file args &optional input)
@@ -66,6 +71,21 @@ Return (EXIT . LINES)."
    "\\\\\\(.\\)"
    (lambda (m) (pcase (match-string 1 m) ("t" " ") ("n" " ⏎ ") ("r" "") (c c)))
    text t t))
+
+(defun bqn-book--backup (file)
+  "Back up FILE's repository in the background, when `bqn-book-backup' says so."
+  (when bqn-book-backup
+    (let ((buffer (get-buffer-create "*book backup*")))
+      (with-current-buffer buffer (erase-buffer))
+      (make-process
+       :name "bqn-book-backup" :buffer buffer
+       :command (list (expand-file-name "backup" (file-name-directory bqn-book-command))
+                      (expand-file-name file))
+       :sentinel (lambda (process _)
+                   (when (memq (process-status process) '(exit signal))
+                     (if (zerop (process-exit-status process))
+                         (message "Saved and backed up.")
+                       (message "Saved, but the backup failed: see *book backup*"))))))))
 
 ;;;; Entries
 
@@ -202,11 +222,12 @@ C-c C-p previews it, C-c C-c saves it, C-c C-k discards it."
   (interactive)
   (pcase (bqn-book--send "save")
     (`(0 . ,_)
-     (let ((list bqn-book--list-buffer))
+     (let ((list bqn-book--list-buffer) (file bqn-book--file))
        (kill-buffer)
        (when (buffer-live-p list)
          (with-current-buffer list (revert-buffer)))
-       (message "Saved.")))
+       (message "Saved.")
+       (bqn-book--backup file)))
     (`(,_ . ,lines) (bqn-book--refusal lines))))
 
 (defun bqn-book-discard ()
@@ -246,7 +267,9 @@ Return non-nil when saved."
        (pcase (bqn-book--call file '("save") (concat (string-join change "\n") "\n"))
          (`(0 . ,_)
           (when (buffer-live-p list) (with-current-buffer list (revert-buffer)))
-          (message "Saved.") t)
+          (message "Saved.")
+          (bqn-book--backup file)
+          t)
          (`(,_ . ,lines) (bqn-book--refusal lines) nil))))
     (`(,_ . ,lines) (bqn-book--refusal lines) nil)))
 

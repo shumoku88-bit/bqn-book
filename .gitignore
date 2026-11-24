@@ -1,1 +1,3 @@
 .DS_Store
+# the household's own settings (which book, which accounts): never in Git
+emacs/local.el

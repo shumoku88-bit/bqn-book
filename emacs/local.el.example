@@ -1,0 +1,12 @@
+;;; local.el --- the household's own settings  -*- lexical-binding: t; -*-
+;; Copy to emacs/local.el (ignored by Git) and fill in. ~/.emacs.d/init.el loads it.
+
+;; The household book: bk records it too; the two take turns (README).
+(setq bqn-book-file (expand-file-name "~/Projects/moko/bakhlo-data/book.txt"))
+
+;; After each save, commit and push its Git repository, as bk does when it ends.
+(setq bqn-book-backup t)
+
+;; Today's guide spends from bk's own choice (bk pace pool) unless you name the
+;; accounts here, like '("bank" "wallet").
+;; (setq bqn-book-pace-pool nil)

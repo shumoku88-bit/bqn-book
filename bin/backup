@@ -5,9 +5,14 @@
 # by bk). Nothing to do outside a Git repository.
 #   bin/backup <book.txt>
 set -u
-household=$(CDPATH= cd -- "$(dirname -- "$1")" && pwd -P)
 fail() { printf '%s\n' "$1" >&2; exit 1; }
-git -C "$household" rev-parse --git-dir >/dev/null 2>&1 || { echo 'Not a Git repository; nothing backed up.'; exit 0; }
+[ "$#" -eq 1 ] || fail 'usage: bin/backup <book.txt>'
+# never fall back to the current directory: a missing folder stops here
+household=$(CDPATH= cd -- "$(dirname -- "$1")" 2>/dev/null && pwd -P) || fail "No such folder: $(dirname -- "$1")"
+[ -n "$household" ] || fail "No such folder: $(dirname -- "$1")"
+# the book's own repository only, not one that merely contains its folder
+[ "$(git -C "$household" rev-parse --show-toplevel 2>/dev/null)" = "$household" ] ||
+  { echo 'The book is not at the top of its own Git repository; nothing backed up.'; exit 0; }
 git -C "$household" add -A || fail 'Household staging failed; the book was not committed or pushed.'
 git -C "$household" diff --cached --quiet
 case $? in

@@ -122,4 +122,28 @@
       (should-not (string-match-p "save-2027-02" (buffer-string)))
       (should (string-match-p "Savings +jpy +20,000" (buffer-string))))))
 
+(ert-deftest bqn-book-backs-up-after-a-save ()
+  (let* ((dir (make-temp-file "bqn-book-house" t))
+         (remote (expand-file-name "remote.git" dir))
+         (house (expand-file-name "house" dir))
+         (copy (expand-file-name "book.txt" house))
+         (bqn-book-backup t))
+    (call-process "git" nil nil nil "init" "-q" "--bare" remote)
+    (call-process "git" nil nil nil "init" "-q" house)
+    (copy-file (expand-file-name "../tests/fixtures/scheduled/base.txt" (file-name-directory bqn-book-command)) copy)
+    (let ((default-directory (file-name-as-directory house)))
+      (call-process "git" nil nil nil "add" "-A")
+      (call-process "git" nil nil nil "-c" "user.name=t" "-c" "user.email=t@t" "commit" "-qm" "first")
+      (call-process "git" nil nil nil "remote" "add" "origin" remote)
+      (call-process "git" nil nil nil "push" "-qu" "origin" "HEAD"))
+    (with-current-buffer (test-bqn-book--list copy)
+      (test-bqn-book--answering '("2027-02-03" "tea" "Bank (bank)" "-300" "Wallet (wallet)" "+300" "")
+                                (save-window-excursion (bqn-book-new-entry))))
+    (let ((process (get-process "bqn-book-backup")))
+      (while (and process (process-live-p process)) (accept-process-output process 0.1)))
+    (let ((default-directory (file-name-as-directory remote)))
+      (should (string-match-p "記帳 .*（Emacs）"
+                              (with-output-to-string
+                                (call-process "git" nil standard-output nil "log" "--oneline" "-1")))))))
+
 ;;; test_emacs.el ends here

@@ -92,6 +92,13 @@ moko の決定で、最初の画面は Emacs にした（日本語入力がそ�
 
 ### 段階5：実データで使い始める（moko の決定が要る）
 
+**決定（2026-11-24）。** moko の決定で、ターミナルの bk と Emacs の bqn-book のどちらからでも記帳する。bakhlo の AGENTS.md も書き換えた。
+
+- 同時の書き込み：BQN が鍵を持つ間は bk が断り、bk の記帳の途中に Emacs 側が保存すると bk が断る（どちらも相手の記帳は残る）。本物の bk で確かめた（`tests/test_with_bk.sh`）。
+- バックアップ：Emacs で保存するたびに `bin/backup` が bk と同じ形で commit と push をする（`bqn-book-backup`）。
+- 今日の目安：bk の `daily-pace.tsv` と `boundary-presets.tsv` を読み、bk と同じ科目・同じ周期で出す（`src/config.bqn`、bakhlo の周期の見本16件が一致。同じ帳簿で bk と同じ値になることも確かめた）。
+- 家計の設定は `emacs/local.el`（Git に入れない）に書く。
+
 - bakhlo の AGENTS.md「Data and authority」の決まり（正データに書くのは moko が `bk` を通してだけ）を、moko が書き換える。
   たとえば「moko が bk か bqn-book を通して書く。同時には書かない。AI は書かない」。
 - 書いた後のバックアップの扱いを決める。bk は `./tools/household` の終わりに commit と push をする。bqn-book 側も、同じ入口を通すか、同じことをする入口を作る。
