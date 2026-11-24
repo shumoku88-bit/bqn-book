@@ -15,6 +15,14 @@
 #   book <book.txt> plans      id, due day, Measure, open|paid|cancelled, its TX or day
 #   book <book.txt> entry <id> the entry as a change that would keep it: edit, then save
 #   book <book.txt> plan <id>  the same for a plan
+#   book <book.txt> open ENTRY|PLAN <id>
+#                              the entry or open plan as a form: MEASURE, ROW key|- account ±amount
+#   book <book.txt> form NEW - | EDIT <id> | PAY <plan>
+#                              form lines on stdin (DAY, MEMO, MEASURE, ROW key|- account
+#                              ±amount, ORIGINAL m quanta; a memo as typed, an amount may be
+#                              an expression) → the change that records it, or REFUSED <code>
+#   book <book.txt> refund <id> <day>
+#                              the change that refunds the entry
 #
 # Text in a row is written as in book.txt (\t, \n, \\ escaped), and so is a memo in a change.
 #
@@ -23,6 +31,7 @@ store ← •Import "../src/store.bqn"
 change ← •Import "../src/change.bqn"
 balance ← •Import "../src/balance.bqn"
 pace ← •Import "../src/pace.bqn"
+form ← •Import "../src/form.bqn"
 view ← •Import "../src/view.bqn"
 tab ← @+9
 Row ← {1↓∾(tab∾⊢)¨𝕩}
@@ -33,7 +42,7 @@ Refused ← {•Out "REFUSED"∾tab∾𝕩.code ⋄ •Exit 1}
 # line's occurrence count tells an added copy from an old one
 Added ← {new 𝕊 old: (¬(new⋈¨⊒new)∊old⋈¨⊒old)/new}
 
-path‿command‿id ← 3↑•args∾2⥊<""
+path‿command‿id‿extra ← 4↑•args∾3⥊<""
 loaded ← store.Load •wdpath •file.At path
 Refused⍟(¬loaded.ok) loaded
 
@@ -52,11 +61,22 @@ Ask ← {𝕊:
 }
 Listed ← {Out Row¨ 𝕏 loaded.book}
 Edited ← {r ← loaded change.Edit 𝕩‿id ⋄ (6=•Type r)◶⟨Out, Refused⟩ r}
-Usage ← {𝕊: •Out "usage: book <book.txt> balances|preview|save|ask|measures|loci|entries|plans|entry <id>|plan <id>" ⋄ •Exit 2}
-commands ← "balances"‿"preview"‿"save"‿"ask"‿"measures"‿"loci"‿"entries"‿"plans"‿"entry"‿"plan"
+# lines, or a refusal
+Answer ← {(6=•Type 𝕩)◶⟨Out, Refused⟩ 𝕩}
+# a new entry's ID, as bakhlo makes them: entry- and 24 hex digits
+NewId ← {𝕊: "entry-"∾"0123456789abcdef"⊏˜24 •rand.Range 16}
+Opened ← {𝕊: Answer loaded.book form.Open id‿extra}
+Filled ← {𝕊:
+  target‿newId ← ("EDIT"≡id)◶⟨extra‿(NewId @), extra‿""⟩ @
+  Answer loaded form.Fill id‿(("NEW"≡id)⊑target‿"-")‿newId‿(•FLines "/dev/stdin")
+}
+Refunded ← {𝕊: r ← loaded form.Refund id‿extra‿(NewId @) ⋄ Answer (6=•Type r)◶⟨⟨"PUT-ENTRY"∾tab∾"NEW"∾tab∾"-"⟩⊸∾, ⊢⟩ r}
+Usage ← {𝕊: •Out "usage: book <book.txt> balances|preview|save|ask|measures|loci|entries|plans|entry <id>|plan <id>|open ENTRY|PLAN <id>|form NEW - | EDIT <id> | PAY <plan>|refund <id> <day>" ⋄ •Exit 2}
+commands ← "balances"‿"preview"‿"save"‿"ask"‿"measures"‿"loci"‿"entries"‿"plans"‿"entry"‿"plan"‿"open"‿"form"‿"refund"
 (⊑commands⊐<command)◶⟨
   Balances, Preview, Save, Ask
   {𝕊: Listed view.measures}, {𝕊: Listed view.loci}, {𝕊: Listed view.entries}, {𝕊: Listed view.plans}   # as values
   {𝕊: Edited "TX"}, {𝕊: Edited "PLAN"}
+  Opened, Filled, Refunded
   Usage
 ⟩ @

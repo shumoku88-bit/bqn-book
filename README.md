@@ -28,6 +28,10 @@ bin/book book.txt ask < questions    # 問い（PACE・PAST・ACTIVITY と POOL 
 bin/book book.txt measures|loci|entries|plans   # 画面が並べる一覧（1行に1つ、タブ区切り）
 bin/book book.txt entry <ID>         # その記帳を「訂正の変更」の形で。直して save に渡せば訂正になる
 bin/book book.txt plan <ID>          # 予定も同じ
+bin/book book.txt open ENTRY|PLAN <ID>   # 記帳や開いている予定を、フォームの行で
+bin/book book.txt form NEW - < form  # フォーム（DAY・MEMO・MEASURE・ROW 鍵|- 科目 ±金額）から、保存できる変更を
+bin/book book.txt form EDIT <ID> < form   # 訂正。PAY <予定ID> はその予定を払う新しい記帳
+bin/book book.txt refund <ID> <日付>     # 返金の変更
 ```
 
 `change` は bakhlo の見本と同じ書き方（`tests/fixtures/records/README.md`）。ただしメモと一覧の文字は book.txt と同じくエスケープして書く（`\t`・`\n`・`\\`）ので、1行が1行のまま保たれる。今は `PUT-ENTRY NEW`・`REPLACE`（記帳を足す・訂正する）、`CORRECT-ENTRY-DATE`（日付だけの訂正）、`CLASSIFY-MERCHANT`（店の分類）、`PUT-PLAN NEW`・`REPLACE`（予定を作る・置き換える）、`CANCEL-PLAN`（予定の取り消し）。bakhlo の変更の種類はすべて。

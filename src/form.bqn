@@ -91,7 +91,8 @@ Fill ⇐ {s 𝕊 mode‿target‿id‿lines:
   b ← s.book
   f ← 4⊸{𝕨↑𝕩∾𝕨⥊<""}¨ read.SplitFields¨lines
   Of ← {((⊑¨f)≡¨<𝕩)/f}
-  day‿memo‿measure ← {⊑(1⊑¨Of 𝕩)∾<""}¨"DAY"‿"MEMO"‿"MEASURE"
+  day‿measure ← {⊑(1⊑¨Of 𝕩)∾<""}¨"DAY"‿"MEASURE"
+  memo ← ⊑({(1+⊑𝕩⊐tab)↓𝕩}¨("MEMO"∾tab)⊸{𝕨≡(≠𝕨)↑𝕩}¨⊸/lines)∾<""   # all after MEMO and a tab
   keys‿loci‿texts ← 1‿2‿3⊑¨¨<Of "ROW"
   originals ← Of "ORIGINAL"
   edit ← "EDIT"≡mode

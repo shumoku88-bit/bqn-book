@@ -28,6 +28,9 @@ grep -qx 'plan-0002	2027-02-06	jpy	open	' "$dir/out"
 cp tests/fixtures/common_format/ok-full.txt "$dir/full.txt"
 bin/book "$dir/full.txt" entry tx-0003 | bin/book "$dir/full.txt" save > "$dir/out"
 cmp -s "$dir/full.txt" tests/fixtures/common_format/ok-full.txt
+printf 'DAY\t2027/1/12\nMEMO\tlunch\nMEASURE\tjpy\nROW\t-\tbank\t-(500+300)/2\nROW\t-\tfood\t+400\n' |
+  bin/book tests/fixtures/records/base.txt form NEW - > "$dir/out"
+grep -qx 'EFFECT	bank	jpy	-400' "$dir/out"
 echo "bin/book: ok"
 
 if command -v emacs >/dev/null 2>&1; then
