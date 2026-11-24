@@ -7,6 +7,7 @@ python3 tests/names.py
 bqn tests/test_book.bqn
 bqn tests/test_change.bqn
 bqn tests/test_store.bqn
+bqn tests/test_view.bqn
 
 dir=$(mktemp -d)
 trap 'rm -rf "$dir"' EXIT
@@ -20,6 +21,11 @@ if bin/book "$dir/book.txt" save < "$dir/change" > "$dir/out"; then exit 1; fi
 grep -qx 'REFUSED	duplicate-entry' "$dir/out"
 printf 'PACE\tjpy\t2027-02-01\t2027-03-01\nPOOL\tbank\n' | bin/book tests/fixtures/scheduled/base.txt ask > "$dir/out"
 grep -qx 'DAILY	3285' "$dir/out"
+bin/book tests/fixtures/common_format/ok-full.txt plans > "$dir/out"
+grep -qx 'plan-0002	2027-02-06	jpy	open	' "$dir/out"
+cp tests/fixtures/common_format/ok-full.txt "$dir/full.txt"
+bin/book "$dir/full.txt" entry tx-0003 | bin/book "$dir/full.txt" save > "$dir/out"
+cmp -s "$dir/full.txt" tests/fixtures/common_format/ok-full.txt
 echo "bin/book: ok"
 
 if [ -d ../bakhlo/test ]; then

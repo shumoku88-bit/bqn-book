@@ -8,12 +8,22 @@
 #   book <book.txt> save       the same, then saves: SAVED and the lines, or REFUSED <code>
 #   book <book.txt> ask        questions on stdin (PACE, PAST, ACTIVITY with POOL lines,
 #                              as bakhlo's samples write them) → each with its answer
+#   book <book.txt> measures   id, decimal places
+#   book <book.txt> loci       id, label, help, HIDDEN or "", role or ""
+#   book <book.txt> entries    id, day, memo, merchant (name, NONMERCHANT, "" if
+#                              unclassified), the TX it reverses, the plan it pays
+#   book <book.txt> plans      id, due day, Measure, open|paid|cancelled, its TX or day
+#   book <book.txt> entry <id> the entry as a change that would keep it: edit, then save
+#   book <book.txt> plan <id>  the same for a plan
+#
+# Text in a row is written as in book.txt (\t, \n, \\ escaped), and so is a memo in a change.
 #
 # Amounts are integers in the Measure's smallest unit. Exit status: 0 done, 1 refused.
 store ← •Import "../src/store.bqn"
 change ← •Import "../src/change.bqn"
 balance ← •Import "../src/balance.bqn"
 pace ← •Import "../src/pace.bqn"
+view ← •Import "../src/view.bqn"
 tab ← @+9
 Row ← {1↓∾(tab∾⊢)¨𝕩}
 Int ← {𝕩<0 ? "-"∾𝕊-𝕩 ; 𝕩<10 ? ⋈'0'+𝕩 ; (𝕊⌊𝕩÷10)∾'0'+10|𝕩}
@@ -23,7 +33,7 @@ Refused ← {•Out "REFUSED"∾tab∾𝕩.code ⋄ •Exit 1}
 # line's occurrence count tells an added copy from an old one
 Added ← {new 𝕊 old: (¬(new⋈¨⊒new)∊old⋈¨⊒old)/new}
 
-path‿command ← •args
+path‿command‿id ← 3↑•args∾2⥊<""
 loaded ← store.Load •wdpath •file.At path
 Refused⍟(¬loaded.ok) loaded
 
@@ -40,5 +50,13 @@ Ask ← {𝕊:
   heads ← ({(⊑𝕩⊐tab)↑𝕩}¨lines)∊"PACE"‿"PAST"‿"ACTIVITY"     # each question starts a group
   Out ∾ (loaded.book pace.Ask ⊢)¨ (¯1++`heads)⊔lines
 }
-Usage ← {𝕊: •Out "usage: book <book.txt> balances|preview|save|ask" ⋄ •Exit 2}
-(⊑"balances"‿"preview"‿"save"‿"ask"⊐<command)◶⟨Balances, Preview, Save, Ask, Usage⟩ @
+Listed ← {Out Row¨ 𝕏 loaded.book}
+Edited ← {r ← loaded change.Edit 𝕩‿id ⋄ (6=•Type r)◶⟨Out, Refused⟩ r}
+Usage ← {𝕊: •Out "usage: book <book.txt> balances|preview|save|ask|measures|loci|entries|plans|entry <id>|plan <id>" ⋄ •Exit 2}
+commands ← "balances"‿"preview"‿"save"‿"ask"‿"measures"‿"loci"‿"entries"‿"plans"‿"entry"‿"plan"
+(⊑commands⊐<command)◶⟨
+  Balances, Preview, Save, Ask
+  {𝕊: Listed view.measures}, {𝕊: Listed view.loci}, {𝕊: Listed view.entries}, {𝕊: Listed view.plans}   # as values
+  {𝕊: Edited "TX"}, {𝕊: Edited "PLAN"}
+  Usage
+⟩ @

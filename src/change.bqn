@@ -15,7 +15,6 @@
 #   Bytes book            → its bytes
 
 read ← •Import "read.bqn"
-print ← •Import "print.bqn"
 tab‿lf ← @+9‿10
 Fields ← read.SplitFields
 ToLines ← {m←lf=𝕩 ⋄ ¯1↓((((¬m)×1++`m)-1)∾1++´m)⊔𝕩}
@@ -61,7 +60,7 @@ Span ← {lines 𝕊 head‿id:
 }
 
 # A TX that is saved again names its exchange legs: bakhlo gives an unkeyed one a
-# fixed key (book.ml entry_of). → ⟨"" or a refusal's code, the block⟩
+# fixed key (book.ml entry_of). → ⟨"" or a refusal's code, the block, the legs' keys⟩
 fixed ← "exchange-source"‿"exchange-destination"
 Keyed ← {
   f ← 5 Pad¨Fields¨𝕩
@@ -71,14 +70,16 @@ Keyed ← {
   from‿to ← (<effect)∧¨((measure≡¨<x)∧0>Amount¨3⊑¨f)‿((measure≡¨<y)∧0<Amount¨3⊑¨f)
   name ← (0=≠¨key)×from+2×to                    # 1, 2: the fixed key it gets
   code ← ⊑(⟨(0<≠x)∧∨´1≠+´¨from‿to, ∨´((name>0)/name⊏(<"")∾fixed)∊key⟩/"exchange-ambiguous"‿"exchange-key-taken")∾<""
-  ⟨code, 𝕩∾¨name⊏⟨""⟩∾(tab∾⊢)¨fixed⟩
+  legs ← fixed {0=≠𝕩 ? 𝕨 ; 𝕩}¨ {⊑(𝕩/key)∾<""}¨from‿to
+  ⟨code, 𝕩∾¨name⊏⟨""⟩∾(tab∾⊢)¨fixed, legs⟩
 }
 
 # PUT-ENTRY NEW <plan|->, or PUT-ENTRY REPLACE -, then a TX block. NEW adds the TX
 # at the end of the TX section (and, paying a plan, a PAID-BY in it); REPLACE puts
 # it in the place of the TX with its ID, which keeps the plans that it paid.
 # EXCHANGE names its legs by their keys here; the book names them by Measure. The
-# memo is not escaped here.
+# memo is written as in book.txt (\t, \n, \\ escaped), so a line stays a line; an
+# empty memo is no memo.
 PutEntry ← {s 𝕊 replace‿plan‿block:
   b ← s.book
   f ← Fields¨block
@@ -116,7 +117,7 @@ PutEntry ← {s 𝕊 replace‿plan‿block:
     head ← {
       "DESC"≢desc ? ⊑block ;
       0=≠memo ? Join "TX"‿id‿day ;
-      Join "TX"‿id‿day‿"DESC"‿(print.Escape memo)
+      ⊑block
     }
     tx ← ⟨head⟩∾{"EXCHANGE"≡Kind 𝕩 ? Join "EXCHANGE"‿mx‿my ; 𝕩}¨1↓block
     Paid ← {(1⊑𝕩 Span "PLAN"‿plan)‿⟨Join "PAID-BY"‿id⟩ Insert 𝕩}
@@ -147,7 +148,7 @@ PutEntry ← {s 𝕊 replace‿plan‿block:
 CorrectDate ← {s 𝕊 id‿day:
   Write ← {𝕊:
     from‿to ← s.lines Span "TX"‿id
-    code‿block ← Keyed {Join day⌾(2⊸⊑) Fields 𝕩}⌾⊑ (from+↕1+to-from)⊏s.lines
+    code‿block‿· ← Keyed {Join day⌾(2⊸⊑) Fields 𝕩}⌾⊑ (from+↕1+to-from)⊏s.lines
     (0<≠code)◶⟨{𝕊: Admit from‿to‿block Swap s.lines}, {𝕊: Refuse code}⟩ @
   }
   Write _unless ⟨
@@ -166,7 +167,7 @@ Classify ← {s 𝕊 id‿how‿name:
   Write ← {𝕊:
     from‿to ← s.lines Span "TX"‿id
     old ← (from+↕1+to-from)⊏s.lines
-    code‿block ← Keyed (⊑/(Kind¨old)∊"EXCHANGE"‿"ENDTX")‿⟨line⟩ Insert old
+    code‿block‿· ← Keyed (⊑/(Kind¨old)∊"EXCHANGE"‿"ENDTX")‿⟨line⟩ Insert old
     (0<≠code)◶⟨{𝕊: Admit from‿to‿block Swap s.lines}, {𝕊: Refuse code}⟩ @
   }
   Write _unless ⟨
@@ -213,6 +214,25 @@ CancelPlan ← {s 𝕊 id‿day:
     "plan-cancelled"‿(⊑(⋈p)∊b.cancelled.plan)
     "invalid-date"‿(¬read.IsDate day)
   ⟩
+}
+
+# The change that would put an entry or a plan back as it is: where a screen's
+# edit starts. An entry's EXCHANGE names its legs' keys, as a change does.
+#   book Edit "TX"‿id | "PLAN"‿id → the change's lines, or {ok⇐0, code}
+Edit ⇐ {s 𝕊 head‿id:
+  isTx ← "TX"≡head
+  Show ← {𝕊:
+    from‿to ← s.lines Span head‿id
+    block ← (from+↕1+to-from)⊏s.lines
+    AsPlan ← {𝕊: ⟨Join "PUT-PLAN"‿"REPLACE"⟩∾block}
+    AsTx ← {𝕊:
+      code‿withKeys‿legs ← Keyed block
+      Back ← {𝕊: ⟨Join "PUT-ENTRY"‿"REPLACE"‿"-"⟩ ∾ {"EXCHANGE"≡Kind 𝕩 ? Join ⟨"EXCHANGE"⟩∾legs ; 𝕩}¨withKeys}
+      (0<≠code)◶⟨Back, {𝕊: Refuse code}⟩ @
+    }
+    isTx◶⟨AsPlan, AsTx⟩ @
+  }
+  Show _unless ⟨(isTx⊑"unknown-plan"‿"unknown-entry")‿(¬⊑(⋈id)∊isTx⊑s.book.plan.id‿s.book.tx.id)⟩
 }
 
 # One change: its command line and the lines of its block.
