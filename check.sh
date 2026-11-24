@@ -10,6 +10,7 @@ bqn tests/test_change.bqn
 bqn tests/test_form.bqn
 bqn tests/test_config.bqn
 bqn tests/test_series.bqn
+bqn tests/test_loci.bqn
 bqn tests/test_store.bqn
 bqn tests/test_view.bqn
 sh tests/test_with_bk.sh
@@ -42,7 +43,7 @@ if command -v emacs >/dev/null 2>&1; then
 fi
 
 if [ -d ../bakhlo/test ]; then
-  for d in common_format records scheduled amounts periods; do
+  for d in common_format records scheduled amounts periods loci; do
     diff -r -x '*.ml' "../bakhlo/test/$d" "tests/fixtures/$d"
   done
   echo "samples: same as bakhlo"

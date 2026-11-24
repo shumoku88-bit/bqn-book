@@ -293,4 +293,23 @@
                               (should (equal (bqn-book--ask-missing "2027-02" "31" "2027-01-31") "2027-02-28")))
     (test-bqn-book--answering '("") (should-not (bqn-book--ask-missing "2027-02" "31" "2027-01-31")))))
 
+(ert-deftest bqn-book-adds-and-names-accounts ()
+  (let* ((copy (test-bqn-book--copy))
+         (home (save-window-excursion (bqn-book-home copy)))
+         (accounts (with-current-buffer home (save-window-excursion (bqn-book-home-accounts)))))
+    (with-current-buffer accounts
+      (should (string-match-p "Gym +gym +hidden" (buffer-substring-no-properties (point-min) (point-max))))
+      (test-bqn-book--answering '("cafe" "Café\\Bar" "expense") (bqn-book-add-account))
+      (should (string-match-p "LOCUS\tcafe\tCafé\\\\\\\\Bar\tCafé\\\\\\\\Bar\n" (test-bqn-book--text copy)))
+      (should (string-match-p "ROLE\tcafe\tEXPENSE\n" (test-bqn-book--text copy)))
+      (should (string-match-p "Café\\\\Bar +cafe +expense" (buffer-substring-no-properties (point-min) (point-max))))
+      (goto-char (point-min))
+      (search-forward "Wallet")
+      (test-bqn-book--answering '("Purse") (bqn-book-name-account))
+      (should (string-match-p "LOCUS\twallet\tPurse\tPurse\n" (test-bqn-book--text copy)))
+      (goto-char (point-min))
+      (search-forward "Purse")
+      (test-bqn-book--answering '("asset") (bqn-book-set-role))
+      (should (string-match-p "ROLE\tcafe\tEXPENSE\nROLE\twallet\tASSET\n" (test-bqn-book--text copy))))))
+
 ;;; test_emacs.el ends here

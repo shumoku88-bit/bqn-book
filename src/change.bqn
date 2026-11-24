@@ -15,6 +15,7 @@
 #   Bytes book            → its bytes
 
 read ← •Import "read.bqn"
+print ← •Import "print.bqn"
 tab‿lf ← @+9‿10
 Fields ← read.SplitFields
 ToLines ← {m←lf=𝕩 ⋄ ¯1↓((((¬m)×1++`m)-1)∾1++´m)⊔𝕩}
@@ -216,6 +217,69 @@ CancelPlan ← {s 𝕊 id‿day:
   ⟩
 }
 
+# Accounts, as bk loci adds, names and gives them a role (household/book.ml
+# add_locus, set_locus_label, role_refusal; cli/locus_roles.ml). bakhlo's change
+# samples have none, so these commands are ours, named after its Book changes, and
+# refuse with its codes; invalid-role is ours. The role samples are bakhlo's
+# (test/loci).
+#   ADD-LOCUS <id>                 offered for new entries, named by its ID until
+#                                  named; a hidden account is offered again
+#   SET-LOCUS-LABEL <id> <name>    the name (escaped, as a memo is); a description
+#                                  already written stays, else it is the name too
+#   SET-ROLE <id> ASSET|LIABILITY|EQUITY|INCOME|EXPENSE
+#                                  once only; the ROLE lines are kept by account
+LocusAt ← {lines 𝕊 id: ⊑/((Kind¨lines)≡¨<"LOCUS")∧(<id)≡¨{1⊑Fields 𝕩∾tab}¨lines}
+OfferedLoci ← {(¬𝕩.locus.hidden)/𝕩.locus.id}
+ForLocus ← {𝕊: Refuse "invalid-locus"}
+
+AddLocus ← {s 𝕊 ⟨id⟩:
+  b ← s.book
+  Write ← {𝕊:
+    Unhide ← {𝕊: at ← s.lines LocusAt id ⋄ ⟨at, at, ⟨Join 4↑Fields at⊑s.lines⟩⟩ Swap s.lines}
+    Add ← {𝕊: (("ROLE"‿"TX"∾later) EndOf s.lines)‿⟨Join "LOCUS"‿id‿(print.Escape id)‿""⟩ Insert s.lines}
+    ForLocus _admitted (⊑(⋈id)∊b.locus.id)◶⟨Add, Unhide⟩ @
+  }
+  Write _unless ⟨
+    "invalid-locus"‿(0=≠id)
+    "duplicate-locus"‿(⊑(⋈id)∊OfferedLoci b)
+  ⟩
+}
+
+LabelLocus ← {s 𝕊 id‿name:
+  b ← s.book
+  white ← " "∾@+9‿10‿12‿13
+  label ← read.IsText◶⟨""˙, read.Unescaped⟩ name      # a bad escape is no name
+  label ↩ (+´∧`label∊white)↓(-+´∧`(⌽label)∊white)↓label
+  Valid ← {(0<≠𝕩) ∧ (80≥≠•ToUTF8 𝕩) ∧ ∧´(𝕩≥@+32)∧𝕩≠@+127}
+  Write ← {𝕊:
+    at ← s.lines LocusAt id
+    old ← 3⊑4 Pad Fields at⊑s.lines
+    help ← (0<≠old)◶⟨print.Escape label, old⟩ @       # written as it was
+    ForBook _admitted ⟨at, at, ⟨Join "LOCUS"‿id‿(print.Escape label)‿help⟩⟩ Swap s.lines
+  }
+  Write _unless ⟨
+    "invalid-locus"‿(0=≠id)
+    "locus-not-approved"‿(¬⊑(⋈id)∊OfferedLoci b)
+    "invalid-label"‿(¬Valid label)
+  ⟩
+}
+
+roleNames ← "ASSET"‿"LIABILITY"‿"EQUITY"‿"INCOME"‿"EXPENSE"
+SetRole ← {s 𝕊 id‿name:
+  b ← s.book
+  Write ← {𝕊:
+    rest ← ((Kind¨s.lines)≢¨<"ROLE")/s.lines
+    loci ← b.role.locus∾<id
+    roles ← (⍋loci) ⊏ loci {Join "ROLE"‿𝕨‿𝕩}¨ b.role.name∾<name
+    {Refuse 𝕩.code} _admitted ((⟨"TX"⟩∾later) EndOf rest)‿roles Insert rest
+  }
+  Write _unless ⟨
+    "suspense-no-role"‿("suspense"≡id)
+    "role-already-set"‿(⊑(⋈id)∊b.role.locus)
+    "invalid-role"‿(¬⊑(⋈name)∊roleNames)
+  ⟩
+}
+
 # The change that would put an entry or a plan back as it is: where a screen's
 # edit starts. An entry's EXCHANGE names its legs' keys, as a change does.
 #   book Edit "TX"‿id | "PLAN"‿id → the change's lines, or {ok⇐0, code}
@@ -251,10 +315,19 @@ Change ← {s 𝕊 c:
   s 𝕊 c:
   command ← 3 Pad Fields ⊑c
   "CANCEL-PLAN"≡⊑command ? s CancelPlan 1↓command ;
+  s 𝕊 c:
+  command ← 3 Pad Fields ⊑c
+  "ADD-LOCUS"≡⊑command ? s AddLocus 1↑1↓command ;
+  s 𝕊 c:
+  command ← 3 Pad Fields ⊑c
+  "SET-LOCUS-LABEL"≡⊑command ? s LabelLocus 1↓command ;
+  s 𝕊 c:
+  command ← 3 Pad Fields ⊑c
+  "SET-ROLE"≡⊑command ? s SetRole 1↓command ;
   Refuse "unsupported-change:"∾⊑Fields ⊑𝕩
 }
 
-commands ← "PUT-ENTRY"‿"PUT-PLAN"‿"CANCEL-PLAN"‿"CORRECT-ENTRY-DATE"‿"CLASSIFY-MERCHANT"
+commands ← "PUT-ENTRY"‿"PUT-PLAN"‿"CANCEL-PLAN"‿"CORRECT-ENTRY-DATE"‿"CLASSIFY-MERCHANT"‿"ADD-LOCUS"‿"SET-LOCUS-LABEL"‿"SET-ROLE"
 Apply ⇐ {s 𝕊 lines:
   starts ← (⊑∘Fields¨lines)∊commands
   changes ← (¯1++`starts)⊔lines

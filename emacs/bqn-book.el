@@ -59,6 +59,7 @@ it ends (bin/backup). For the household book, whose folder is its backup reposit
      ("E" . "予定を変更の文で直す")
      ("c" . "予定を取り消す（印を付けて残す）")
      ("s" . "予定のまとまり")
+     ("a" . "科目の一覧（追加・名前・役割）")
      ("l" . "記帳の一覧")
      ("g" . "読み直す"))
     (bqn-book-entries-mode
@@ -82,6 +83,12 @@ it ends (bin/backup). For the household book, whose folder is its backup reposit
      ("c" . "取り消す（印を付けて残す）")
      ("m" . "先の月を埋める（最後の予定を写す）")
      ("n" . "新しい予定")
+     ("g" . "読み直す"))
+    (bqn-book-accounts-mode
+     ("+" . "科目を足す（ID・名前・役割）")
+     ("r" . "名前を変える")
+     ("R" . "役割を付ける（1回だけ）")
+     ("S" . "この列で並べ替える（見出しの列で）")
      ("g" . "読み直す"))
     (bqn-book-form-mode
      ("C-c C-c" . "下見して保存")
@@ -550,6 +557,7 @@ Columns, not characters: a Japanese character takes two."
   "E" #'bqn-book-edit-plan-as-change
   "n" #'bqn-book-new-plan
   "s" #'bqn-book-home-series
+  "a" #'bqn-book-home-accounts
   "?" #'bqn-book-keys
   "g" #'revert-buffer)
 
@@ -934,6 +942,93 @@ series' plans, its months, or nil.")
       (pop-to-buffer-same-window buffer)
       (message "? keys")
       buffer)))
+
+;;;; Accounts: what bk loci shows, adds and names
+
+(defvar bqn-book-accounts-mode-map (make-sparse-keymap))
+(define-keymap :keymap bqn-book-accounts-mode-map   ; again on reload: a new key takes effect
+  :parent tabulated-list-mode-map
+  "+" #'bqn-book-add-account
+  "r" #'bqn-book-name-account
+  "R" #'bqn-book-set-role
+  "g" #'revert-buffer
+  "?" #'bqn-book-keys)
+
+(define-derived-mode bqn-book-accounts-mode tabulated-list-mode "Book accounts"
+  "The book's accounts: name, ID, role, and whether new entries are offered it."
+  (setq tabulated-list-format [("Name" 20 t) ("ID" 16 t) ("Role" 10 t) ("" 0 nil)])
+  (setq tabulated-list-padding 1)
+  (add-hook 'tabulated-list-revert-hook #'bqn-book--accounts-list nil t)
+  (display-line-numbers-mode -1)
+  (tabulated-list-init-header))
+
+(defun bqn-book--accounts-list ()
+  "Fill the accounts buffer from bin/book."
+  (setq tabulated-list-entries
+        (mapcar (lambda (row)
+                  (pcase-let ((`(,id ,label ,_help ,hidden ,role) row))
+                    (list id (vector (bqn-book--shown label) id (downcase role)
+                                     (if (equal hidden "HIDDEN") (propertize "hidden" 'face 'shadow) "")))))
+                (bqn-book--rows bqn-book--file "loci"))))
+
+(defun bqn-book-home-accounts ()
+  "The accounts of this home's book."
+  (interactive)
+  (let ((file bqn-book--file)
+        (buffer (get-buffer-create (format "*book accounts %s*" (abbreviate-file-name bqn-book--file)))))
+    (with-current-buffer buffer
+      (bqn-book-accounts-mode)
+      (setq bqn-book--file file)
+      (bqn-book--accounts-list)
+      (tabulated-list-print))
+    (pop-to-buffer-same-window buffer)
+    (message "? keys")
+    buffer))
+
+(defun bqn-book--read-role (prompt)
+  "Ask for a role by its first letters; nil for none."
+  (let* ((roles '("asset" "liability" "equity" "income" "expense"))
+         (answer (completing-read prompt (cons "-" roles) nil t)))
+    (unless (member answer '("" "-")) (upcase answer))))
+
+(defun bqn-book--escaped (text)
+  "TEXT as a change's field holds it: \\, tab and newlines escaped."
+  (replace-regexp-in-string "[\\\t\n\r]"
+                            (lambda (c) (pcase c ("\\" "\\\\") ("\t" "\\t") ("\n" "\\n") ("\r" "\\r")))
+                            text t t))
+
+(defun bqn-book-add-account ()
+  "Add an account as bk loci add does: its ID (one word, used inside the book),
+its name (its ID when left as is) and a role (or none), after a preview. An
+account that was hidden is offered again."
+  (interactive)
+  (let* ((id (string-trim (read-string "ID (one word, used inside the book): ")))
+         (name (read-string "Name: " nil nil id))
+         (role (bqn-book--read-role "Role (asset, liability, equity, income, expense, or - for none): ")))
+    (bqn-book--save-change
+     bqn-book--file
+     (append (list (concat "ADD-LOCUS\t" id))
+             (unless (equal name id) (list (concat "SET-LOCUS-LABEL\t" id "\t" (bqn-book--escaped name))))
+             (when role (list (concat "SET-ROLE\t" id "\t" role))))
+     (current-buffer))))
+
+(defun bqn-book-name-account ()
+  "Give the account at point a new name, after a preview."
+  (interactive)
+  (let* ((id (or (tabulated-list-get-id) (user-error "No account here")))
+         (old (aref (tabulated-list-get-entry) 0))
+         (name (read-string (format "New name for %s: " old) old)))
+    (bqn-book--save-change bqn-book--file
+                           (list (concat "SET-LOCUS-LABEL\t" id "\t" (bqn-book--escaped name)))
+                           (current-buffer))))
+
+(defun bqn-book-set-role ()
+  "Give the account at point its role, once: roles are never replaced."
+  (interactive)
+  (let* ((id (or (tabulated-list-get-id) (user-error "No account here")))
+         (role (bqn-book--read-role (format "Role for %s: " (aref (tabulated-list-get-entry) 0)))))
+    (when role
+      (bqn-book--save-change bqn-book--file (list (concat "SET-ROLE\t" id "\t" role)) (current-buffer)))))
 
 (provide 'bqn-book)
 ;;; bqn-book.el ends here

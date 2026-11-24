@@ -52,4 +52,15 @@ ours=$(bin/book "$book" series "$today" | awk -F '\t' '{
   if ($9 != "") note = note ", missing " $9
   print $3, $5, $6, $7, note }')
 [ -n "$theirs" ] && [ "$theirs" = "$ours" ] || { printf 'bk plans:\n%s\nours:\n%s\n' "$theirs" "$ours"; exit 1; }
+# 5. accounts: a new one with a name and a role, a hidden one offered again under
+# its ID, and a new name for one in use, the same bytes as bk loci add and name
+cp tests/fixtures/scheduled/base.txt "$book"
+cp tests/fixtures/scheduled/base.txt "$dir/ours.txt"
+printf 'cafe\n  Café\\Bar \nexpense\ny\n' | "$bk" --book "$book" loci add > /dev/null
+printf 'gym\ngym\n-\ny\n' | "$bk" --book "$book" loci add > /dev/null
+printf 'Ban\nMain bank\ny\n' | "$bk" --book "$book" loci name > /dev/null
+printf '%s\n' 'ADD-LOCUS	cafe' 'SET-LOCUS-LABEL	cafe	  Café\\Bar ' 'SET-ROLE	cafe	EXPENSE' \
+  'ADD-LOCUS	gym' 'SET-LOCUS-LABEL	bank	Main bank' | bin/book "$dir/ours.txt" save > /dev/null
+cmp -s "$book" "$dir/ours.txt" || { diff "$book" "$dir/ours.txt"; exit 1; }
+! cmp -s "$book" tests/fixtures/scheduled/base.txt
 echo "with bk: ok"

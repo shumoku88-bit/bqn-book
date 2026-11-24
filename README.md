@@ -42,7 +42,7 @@ bin/book book.txt view                 # bk が残高画面で見せる科目
 bin/backup book.txt                  # 保存のあとのバックアップ（帳簿の Git に commit と push。bk と同じ）
 ```
 
-`change` は bakhlo の見本と同じ書き方（`tests/fixtures/records/README.md`）。ただしメモと一覧の文字は book.txt と同じくエスケープして書く（`\t`・`\n`・`\\`）ので、1行が1行のまま保たれる。今は `PUT-ENTRY NEW`・`REPLACE`（記帳を足す・訂正する）、`CORRECT-ENTRY-DATE`（日付だけの訂正）、`CLASSIFY-MERCHANT`（店の分類）、`PUT-PLAN NEW`・`REPLACE`（予定を作る・置き換える）、`CANCEL-PLAN`（予定の取り消し）。bakhlo の変更の種類はすべて。
+`change` は bakhlo の見本と同じ書き方（`tests/fixtures/records/README.md`）。ただしメモと一覧の文字は book.txt と同じくエスケープして書く（`\t`・`\n`・`\\`）ので、1行が1行のまま保たれる。今は `PUT-ENTRY NEW`・`REPLACE`（記帳を足す・訂正する）、`CORRECT-ENTRY-DATE`（日付だけの訂正）、`CLASSIFY-MERCHANT`（店の分類）、`PUT-PLAN NEW`・`REPLACE`（予定を作る・置き換える）、`CANCEL-PLAN`（予定の取り消し）。bakhlo の変更の見本にある種類はすべて。ほかに、bk の `bk loci` に合わせた科目の変更 `ADD-LOCUS`（科目を足す。隠した科目は戻す）・`SET-LOCUS-LABEL`（名前）・`SET-ROLE`（役割、1回だけ）。この3つは見本に無いので bqn-book の言葉で、同じ操作を bk でした帳簿とバイト単位で同じになることを確かめている。
 
 ```
 PUT-ENTRY	NEW	-
