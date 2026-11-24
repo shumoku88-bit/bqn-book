@@ -801,7 +801,8 @@ split plan is refused (change it on its own)."
         (`(0 . ,change) (bqn-book--save-change file change (current-buffer)))
         (`(,_ "REFUSED\tunchanged") (message "Every plan already has that amount."))
         (`(,_ ,(and line (pred (string-prefix-p "REFUSED\tsplit-plan:"))))
-         (message "%s is split between accounts: change it on its own (e)." (substring line 20)))
+         (message "%s is split between accounts: change it on its own (e)."
+                  (string-remove-prefix "REFUSED\tsplit-plan:" line)))
         (`(,_ . ,lines) (bqn-book--refusal lines))))))
 
 (defun bqn-book-fill-months ()
