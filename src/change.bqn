@@ -150,7 +150,7 @@ CorrectDate ← {s 𝕊 id‿day:
 # CLASSIFY-MERCHANT <TX ID> MERCHANT <name> | NONMERCHANT: once only. The name
 # arrives escaped (\t \r \n \\) and must be one token.
 Classify ← {s 𝕊 id‿how‿name:
-  name ↩ read.IsText◶⟨"\"˙, read.Unescaped⟩ name     # a bad escape is no token
+  name ↩ read.IsText◶⟨""˙, read.Unescaped⟩ name      # a bad escape is no token
   tx ← ⊑s.book.tx.id⊐⋈id
   line ← ("MERCHANT"≡how)◶⟨"NONMERCHANT"˙, {𝕊: "MERCHANT"∾tab∾name}⟩ @
   Write ← {𝕊:
